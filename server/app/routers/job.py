@@ -45,34 +45,49 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
     user_id = user["user_id"]
     now = datetime.now(timezone.utc)
 
+    # Check user status (§7.1 step 2)
+    if user.get("status") != "active":
+        raise HTTPException(status_code=403, detail="Account is not active")
+
     # Calculate cost
     rate = _get_credit_rate(req.mode)
     total_cost = req.file_count * rate
     current_credits = user.get("credits", 0)
 
-    # Check balance
-    if current_credits < total_cost:
-        raise HTTPException(
-            status_code=402,
-            detail="Insufficient credits",
-            headers={
-                "X-Required": str(total_cost),
-                "X-Available": str(current_credits),
-                "X-Shortfall": str(total_cost - current_credits),
-            },
-        )
-
     # Generate job token
     job_token = str(uuid.uuid4())
     expires_at = now + timedelta(hours=settings.JOB_EXPIRE_HOURS)
 
-    # Deduct credits atomically
+    # Atomic credit deduction using Firestore Transaction (§7.1 step 6)
+    db = firestore.Client()
     user_ref = users_ref().document(user_id)
-    new_balance = current_credits - total_cost
-    user_ref.update({
-        "credits": firestore.Increment(-total_cost),
-        "last_active": now,
-    })
+    new_balance = 0
+
+    @firestore.transactional
+    def reserve_transaction(transaction):
+        nonlocal new_balance
+        snapshot = user_ref.get(transaction=transaction)
+        if not snapshot.exists:
+            raise HTTPException(status_code=404, detail="User not found")
+        current = snapshot.to_dict().get("credits", 0)
+        if current < total_cost:
+            raise HTTPException(
+                status_code=402,
+                detail="Insufficient credits",
+            )
+        new_balance = current - total_cost
+        transaction.update(user_ref, {
+            "credits": new_balance,
+            "last_active": now,
+        })
+
+    try:
+        reserve_transaction(db.transaction())
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Reserve transaction failed: {e}")
+        raise HTTPException(status_code=500, detail="Credit deduction failed")
 
     # Create job document
     jobs_ref().add({
@@ -116,10 +131,12 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
     encrypted_config = ""
     dictionary = ""
     blacklist = []
+    cache_threshold = 20
 
     if config_doc.exists:
         sys_config = config_doc.to_dict()
         blacklist = sys_config.get("blacklist", [])
+        cache_threshold = sys_config.get("context_cache_threshold", 20)
 
         # Select prompt based on mode + keyword_style
         prompts = sys_config.get("prompts", {})
@@ -165,6 +182,7 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
             "image": settings.MAX_CONCURRENT_IMAGES,
             "video": settings.MAX_CONCURRENT_VIDEOS,
         },
+        cache_threshold=cache_threshold,
     )
 
 
@@ -200,6 +218,18 @@ async def finalize_job(req: FinalizeJobRequest, user: dict = Depends(get_current
             refunded=job.get("refund_amount", 0),
             balance=current_balance,
         )
+
+    if job.get("status") not in ("RESERVED", "PROCESSING"):
+        raise HTTPException(status_code=400, detail=f"Job cannot be finalized (status: {job.get('status')})")
+
+    # Anti-cheat validation (§7.2 spec)
+    file_count = job.get("file_count", 0)
+    if req.success + req.failed > file_count:
+        logger.warning(f"Anti-cheat: {user_id} claimed {req.success}+{req.failed} > {file_count} files")
+        raise HTTPException(status_code=400, detail="Claimed file count exceeds reserved amount")
+    if req.success > file_count:
+        logger.warning(f"Anti-cheat: {user_id} claimed success={req.success} > {file_count}")
+        raise HTTPException(status_code=400, detail="Success count exceeds reserved file count")
 
     # Calculate refund
     rate = job.get("credit_rate", 3)

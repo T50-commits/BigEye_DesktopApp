@@ -20,15 +20,8 @@ def init():
     if doc_ref.get().exists:
         print("system_config/app_settings already exists. Updating...")
 
+    # Use merge=True to avoid overwriting prompts/dictionary uploaded separately
     doc_ref.set({
-        "prompts": {
-            "prompt_istock": "You are an expert stock photo metadata specialist for iStock/Getty Images.",
-            "prompt_hybrid": "You are an expert stock photo metadata specialist for Adobe Stock.",
-            "prompt_single": "You are an expert stock photo metadata specialist for Shutterstock.",
-            "user_prompt": "Analyze this image and generate metadata in JSON format with keys: title, description, keywords, category.",
-        },
-        "dictionary_url": "",
-        "dictionary_hash": "",
         "blacklist": [
             "nike", "adidas", "puma", "reebok", "gucci", "louis vuitton",
             "chanel", "hermes", "rolex", "apple", "iphone", "ipad", "macbook",
@@ -57,7 +50,7 @@ def init():
         "max_concurrent_images": 5,
         "max_concurrent_videos": 2,
         "updated_at": firestore.SERVER_TIMESTAMP,
-    })
+    }, merge=True)
 
     print("✅ system_config/app_settings initialized successfully")
     print(f"   Blacklist: {40} brand terms")

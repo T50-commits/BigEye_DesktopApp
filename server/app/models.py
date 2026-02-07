@@ -78,6 +78,7 @@ class ReserveJobResponse(BaseModel):
     dictionary: str = ""  # keyword dictionary (iStock mode only)
     blacklist: list[str] = []
     concurrency: dict = {}
+    cache_threshold: int = 20  # context cache threshold (§7.1)
 
 
 class FinalizeJobRequest(BaseModel):
