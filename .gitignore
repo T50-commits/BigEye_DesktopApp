@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.egg-info/
+dist/
+build/
+*.spec
+.env
+*.log
+proxy_cache/
+recovery.json
+debug_log.txt
+.bigeye/
+venv/
+.venv/

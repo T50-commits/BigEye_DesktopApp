@@ -1,0 +1,515 @@
+"""
+BigEye Pro — Main Window (Task B-05)
+Assembles Top Bar, Sidebar, Gallery (Center Stage), and Inspector.
+3-column layout: Sidebar(270px) | Gallery(stretch) | Inspector(300px)
+"""
+import logging
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
+    QStatusBar, QMessageBox, QSplitter, QFrame
+)
+from PySide6.QtCore import Qt, QTimer, QThread, QObject, Slot, Signal
+from PySide6.QtGui import QAction, QKeySequence
+
+from core.config import (
+    MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT,
+    MAIN_WINDOW_MIN_WIDTH, MAIN_WINDOW_MIN_HEIGHT,
+    APP_NAME, APP_VERSION, STATUS_BAR_HEIGHT,
+    KEYRING_SERVICE, KEYRING_API_KEY,
+)
+from core.auth_manager import AuthManager
+from core.api_client import api, APIError, NetworkError, MaintenanceError, UpdateRequiredError
+from core.engines.gemini_engine import GeminiEngine
+from core.managers.journal_manager import JournalManager
+from utils.helpers import count_files, format_number
+from utils.security import get_hardware_id, save_to_keyring, load_from_keyring, delete_from_keyring
+from ui.components.credit_bar import CreditBar
+from ui.components.sidebar import Sidebar
+from ui.components.gallery import Gallery
+from ui.components.inspector import Inspector
+from ui.components.confirm_dialog import ConfirmDialog
+from ui.components.insufficient_dialog import InsufficientDialog
+from ui.components.export_csv_dialog import ExportCsvDialog
+from ui.components.summary_dialog import SummaryDialog
+from ui.components.history_dialog import HistoryDialog
+from ui.components.topup_dialog import TopUpDialog
+from ui.components.update_dialog import UpdateDialog
+from ui.components.recovery_dialog import RecoveryDialog
+from ui.components.maintenance_dialog import MaintenanceDialog
+
+logger = logging.getLogger("bigeye")
+
+
+class StartupWorker(QObject):
+    """Runs startup tasks in background: update check, recovery, balance."""
+    balance_loaded = Signal(int)
+    update_available = Signal(dict)
+    recovery_found = Signal(dict)
+    maintenance = Signal(str)
+    finished = Signal()
+
+    @Slot()
+    def run(self):
+        # 1. Check for update
+        try:
+            hw_id = get_hardware_id()
+            result = api.check_update(APP_VERSION, hw_id)
+            if result.get("update_available"):
+                self.update_available.emit(result)
+        except UpdateRequiredError as e:
+            self.update_available.emit({
+                "version": e.version, "download_url": e.download_url,
+                "force": True, "message": str(e),
+            })
+        except MaintenanceError as e:
+            self.maintenance.emit(str(e))
+        except Exception as e:
+            logger.debug(f"Update check skipped: {e}")
+
+        # 2. Crash recovery
+        try:
+            recovery = JournalManager.recover_on_startup(api)
+            if recovery:
+                self.recovery_found.emit(recovery)
+        except Exception as e:
+            logger.debug(f"Recovery check skipped: {e}")
+
+        # 3. Cleanup orphaned caches
+        try:
+            GeminiEngine().cleanup_orphaned_caches()
+        except Exception as e:
+            logger.debug(f"Cache cleanup skipped: {e}")
+
+        # 4. Load balance
+        try:
+            balance = api.get_balance()
+            self.balance_loaded.emit(balance)
+        except Exception as e:
+            logger.debug(f"Balance load skipped: {e}")
+
+        self.finished.emit()
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, user_name: str = "", jwt_token: str = "",
+                 auth_manager: AuthManager | None = None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(APP_NAME)
+        self.resize(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
+        self.setMinimumSize(MAIN_WINDOW_MIN_WIDTH, MAIN_WINDOW_MIN_HEIGHT)
+
+        self._jwt_token = jwt_token
+        self._user_name = user_name
+        self._auth_manager = auth_manager or AuthManager()
+        self._results = {}  # filename -> result dict
+        self._is_processing = False
+        self._startup_thread = None
+        self._startup_worker = None
+
+        self._setup_ui()
+        self._setup_shortcuts()
+        self._connect_signals()
+        self._init_state()
+        self._run_startup_tasks()
+
+    def _setup_ui(self):
+        central = QWidget()
+        self.setCentralWidget(central)
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # ── TOP BAR ──
+        self.credit_bar = CreditBar()
+        main_layout.addWidget(self.credit_bar)
+
+        # ── BODY (Sidebar | Gallery | Inspector) ──
+        body = QWidget()
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
+
+        # Left sidebar
+        self.sidebar = Sidebar()
+        body_layout.addWidget(self.sidebar)
+
+        # Vertical divider
+        div1 = QFrame()
+        div1.setFrameShape(QFrame.Shape.VLine)
+        div1.setStyleSheet("color: #1A3A6B;")
+        body_layout.addWidget(div1)
+
+        # Center gallery
+        self.gallery = Gallery()
+        body_layout.addWidget(self.gallery, 1)  # stretch
+
+        # Vertical divider
+        div2 = QFrame()
+        div2.setFrameShape(QFrame.Shape.VLine)
+        div2.setStyleSheet("color: #1A3A6B;")
+        body_layout.addWidget(div2)
+
+        # Right inspector
+        self.inspector = Inspector()
+        self.inspector.set_results_ref(self._results)
+        body_layout.addWidget(self.inspector)
+
+        main_layout.addWidget(body, 1)
+
+        # ── STATUS BAR ──
+        self.status_bar = QStatusBar()
+        self.status_bar.setFixedHeight(STATUS_BAR_HEIGHT)
+        self.status_bar.setStyleSheet(
+            "QStatusBar { background: #16213E; color: #4A5568; "
+            "font-size: 11px; border-top: 1px solid #1A3A6B; }"
+        )
+        self.setStatusBar(self.status_bar)
+        self.status_bar.showMessage("Ready")
+        # Version label on right side
+        version_label = QLabel(f"v{APP_VERSION}")
+        version_label.setStyleSheet("color: #4A5568; font-size: 11px; padding-right: 8px;")
+        self.status_bar.addPermanentWidget(version_label)
+
+    def _setup_shortcuts(self):
+        shortcuts = [
+            ("Ctrl+O", self._on_open_folder),
+            ("Ctrl+Return", self._on_start_stop),
+            ("Ctrl+S", self._on_export_csv),
+            ("Ctrl+R", self._on_refresh_balance),
+            ("Ctrl+T", self._on_topup),
+            ("Ctrl+H", self._on_history),
+            ("Escape", self._on_escape),
+        ]
+        for key, callback in shortcuts:
+            action = QAction(self)
+            action.setShortcut(QKeySequence(key))
+            action.triggered.connect(callback)
+            self.addAction(action)
+
+    def _connect_signals(self):
+        # Credit bar
+        self.credit_bar.topup_clicked.connect(self._on_topup)
+        self.credit_bar.refresh_clicked.connect(self._on_refresh_balance)
+        self.credit_bar.history_clicked.connect(self._on_history)
+        self.credit_bar.logout_clicked.connect(self._on_logout)
+
+        # Sidebar
+        self.sidebar.platform_changed.connect(self._on_platform_changed)
+        self.sidebar.api_key_saved.connect(self._on_save_api_key)
+        self.sidebar.api_key_cleared.connect(self._on_clear_api_key)
+
+        # Gallery
+        self.gallery.file_selected.connect(self._on_file_selected)
+        self.gallery.start_clicked.connect(self._on_start)
+        self.gallery.stop_clicked.connect(self._on_stop)
+        self.gallery.folder_changed.connect(self._on_folder_changed)
+
+        # Inspector
+        self.inspector.export_clicked.connect(self._on_export_csv)
+        self.inspector.metadata_edited.connect(self._on_metadata_edited)
+
+    def _init_state(self):
+        """Initialize state after window is shown."""
+        self.credit_bar.set_user_name(self._user_name)
+        self.credit_bar.set_balance(0)  # Will be updated by startup worker
+        self.status_bar.showMessage("Ready")
+
+        # Load saved API key from keyring
+        saved_key = load_from_keyring(KEYRING_SERVICE, KEYRING_API_KEY)
+        if saved_key:
+            self.sidebar.set_api_key(saved_key)
+
+    def _run_startup_tasks(self):
+        """Run startup tasks in background thread."""
+        self._startup_worker = StartupWorker()
+        self._startup_thread = QThread()
+        self._startup_worker.moveToThread(self._startup_thread)
+
+        self._startup_thread.started.connect(self._startup_worker.run)
+        self._startup_worker.balance_loaded.connect(self.credit_bar.set_balance)
+        self._startup_worker.update_available.connect(self._on_update_available)
+        self._startup_worker.recovery_found.connect(self._on_recovery_found)
+        self._startup_worker.maintenance.connect(self._on_maintenance)
+        self._startup_worker.finished.connect(self._startup_thread.quit)
+        self._startup_thread.finished.connect(self._cleanup_startup)
+
+        self._startup_thread.start()
+        logger.info("Startup tasks running in background")
+
+    def _on_update_available(self, info: dict):
+        dialog = UpdateDialog(
+            info.get("version", ""),
+            info.get("download_url", ""),
+            info.get("force", False),
+            self,
+        )
+        dialog.exec()
+
+    def _on_recovery_found(self, info: dict):
+        dialog = RecoveryDialog(info, self)
+        dialog.exec()
+
+    def _on_maintenance(self, message: str):
+        dialog = MaintenanceDialog(self)
+        dialog.exec()
+
+    def _cleanup_startup(self):
+        if self._startup_worker:
+            self._startup_worker.deleteLater()
+            self._startup_worker = None
+        if self._startup_thread:
+            self._startup_thread.deleteLater()
+            self._startup_thread = None
+
+    # ── Slot Handlers ──
+
+    def _on_open_folder(self):
+        if not self._is_processing:
+            self.gallery._on_open_folder()
+
+    def _on_start_stop(self):
+        if self._is_processing:
+            self._on_stop()
+        else:
+            self._on_start()
+
+    def _on_start(self):
+        """Validate and start processing."""
+        file_list = self.gallery.get_file_list()
+        if not file_list:
+            QMessageBox.warning(self, "No Files", "Please open a folder with media files first.")
+            return
+
+        api_key = self.sidebar.get_api_key()
+        if not api_key:
+            QMessageBox.warning(self, "No API Key", "Please enter and save your Gemini API key.")
+            return
+
+        settings = self.sidebar.get_settings()
+        rate = settings["platform_rate"]
+        file_count = len(file_list)
+        cost = file_count * rate
+        balance = self.credit_bar.get_balance()
+
+        img_count, vid_count = count_files(file_list)
+
+        if balance < cost:
+            dialog = InsufficientDialog(cost, balance, rate, self)
+            dialog.topup_requested.connect(self._on_topup)
+            dialog.partial_requested.connect(self._on_partial_process)
+            dialog.exec()
+            return
+
+        dialog = ConfirmDialog(
+            file_count, img_count, vid_count,
+            settings["model"], settings["platform"],
+            cost, balance, self
+        )
+        if dialog.exec() == ConfirmDialog.DialogCode.Accepted:
+            self._begin_processing(file_list)
+
+    def _on_partial_process(self, max_files: int):
+        """Start processing with limited file count."""
+        file_list = self.gallery.get_file_list()[:max_files]
+        self._begin_processing(file_list)
+
+    def _begin_processing(self, file_list: list):
+        """Begin the actual processing loop."""
+        self._is_processing = True
+        self._set_processing_state(True)
+        self.status_bar.showMessage(f"Processing {len(file_list)} files...")
+
+        # TODO: Implement actual processing via QThread
+        # For now, simulate with a timer for UI testing
+        self._process_queue = list(file_list)
+        self._process_index = 0
+        self._process_total = len(file_list)
+        self._process_timer = QTimer(self)
+        self._process_timer.timeout.connect(self._simulate_process_step)
+        self._process_timer.start(500)
+
+    def _simulate_process_step(self):
+        """Simulate processing one file at a time for UI demo."""
+        import os
+        import random
+
+        if self._process_index >= self._process_total or not self._is_processing:
+            self._process_timer.stop()
+            self._finish_processing()
+            return
+
+        filepath = self._process_queue[self._process_index]
+        filename = os.path.basename(filepath)
+
+        # Mark as processing
+        self.gallery.update_file_status(filepath, "processing")
+        self.gallery.update_progress(self._process_index, self._process_total)
+
+        # Simulate result (90% success)
+        if random.random() < 0.9:
+            self._results[filename] = {
+                "title": f"Stock photo of {filename.split('.')[0]}",
+                "description": f"Professional stock image showing {filename.split('.')[0]} in high quality.",
+                "keywords": ["stock", "photo", "professional", "high quality", "image"],
+                "category": "Miscellaneous",
+                "token_input": random.randint(800, 2000),
+                "token_output": random.randint(200, 600),
+                "processing_time": random.uniform(1.5, 5.0),
+                "status": "success",
+            }
+            self.gallery.update_file_status(filepath, "completed")
+        else:
+            self._results[filename] = {
+                "error": "[RATE_LIMIT] Too many requests",
+                "error_type": "RATE_LIMIT",
+                "status": "error",
+            }
+            self.gallery.update_file_status(filepath, "error")
+
+        self._process_index += 1
+        self.gallery.update_progress(self._process_index, self._process_total)
+
+        # Update inspector if this file is selected
+        if hasattr(self, '_selected_file') and self._selected_file == filepath:
+            self.inspector.show_file(filepath)
+
+    def _finish_processing(self):
+        """Finish processing and show summary."""
+        self._is_processing = False
+        self._set_processing_state(False)
+
+        successful = sum(1 for r in self._results.values() if r.get("status") == "success")
+        failed = sum(1 for r in self._results.values() if r.get("status") == "error")
+        img_count, vid_count = count_files(self.gallery.get_file_list())
+
+        settings = self.sidebar.get_settings()
+        rate = settings["platform_rate"]
+        charged = (successful + failed) * rate
+        refunded = failed * rate
+        balance = self.credit_bar.get_balance() - charged + refunded
+
+        self.credit_bar.set_balance(balance)
+        self.gallery.update_progress(self._process_total, self._process_total)
+        self.status_bar.showMessage(
+            f"Complete — {successful} successful, {failed} failed"
+        )
+
+        dialog = SummaryDialog(
+            successful, failed, img_count, vid_count,
+            charged, refunded, balance, [], self
+        )
+        dialog.exec()
+
+    def _on_stop(self):
+        """Stop processing with confirmation."""
+        if not self._is_processing:
+            return
+        reply = QMessageBox.question(
+            self, "Stop Processing",
+            "Are you sure you want to stop processing?\nUnprocessed files will not be charged.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._is_processing = False
+
+    def _on_escape(self):
+        if self._is_processing:
+            self._on_stop()
+
+    def _set_processing_state(self, is_processing: bool):
+        """Lock/unlock all UI components."""
+        self.sidebar.set_processing(is_processing)
+        self.gallery.set_processing(is_processing)
+        self.inspector.set_processing(is_processing)
+        self.credit_bar.set_processing(is_processing)
+
+    def _on_file_selected(self, filepath: str):
+        self._selected_file = filepath
+        self.inspector.show_file(filepath)
+
+    def _on_folder_changed(self, folder_path: str, file_list: list):
+        """Update cost estimate when folder changes."""
+        self._results.clear()
+        self.inspector.clear()
+        self._update_cost_estimate()
+        self.status_bar.showMessage(
+            f"Loaded {len(file_list)} files from {folder_path}"
+        )
+
+    def _on_platform_changed(self, text: str):
+        self._update_cost_estimate()
+
+    def _update_cost_estimate(self):
+        file_count = self.gallery.get_file_count()
+        if file_count > 0:
+            rate = self.sidebar.get_platform_rate()
+            platform = self.sidebar.get_platform_name()
+            balance = self.credit_bar.get_balance()
+            self.gallery.update_cost_estimate(file_count, rate, platform, balance)
+
+    def _on_metadata_edited(self, filepath: str, data: dict):
+        """Save edited metadata to in-memory results."""
+        import os
+        filename = os.path.basename(filepath)
+        if filename in self._results:
+            self._results[filename].update(data)
+
+    def _on_export_csv(self):
+        dialog = ExportCsvDialog(self)
+        dialog.export_confirmed.connect(self._do_export_csv)
+        dialog.exec()
+
+    def _do_export_csv(self):
+        """Perform actual CSV export."""
+        # TODO: Implement CSV export logic
+        self.status_bar.showMessage("CSV exported successfully")
+
+    def _on_save_api_key(self, key: str):
+        """Save API key to system keyring."""
+        save_to_keyring(KEYRING_SERVICE, KEYRING_API_KEY, key)
+        self.status_bar.showMessage("API key saved")
+        logger.info("API key saved to keyring")
+
+    def _on_clear_api_key(self):
+        """Clear API key from system keyring."""
+        delete_from_keyring(KEYRING_SERVICE, KEYRING_API_KEY)
+        self.status_bar.showMessage("API key cleared")
+        logger.info("API key cleared from keyring")
+
+    def _on_refresh_balance(self):
+        """Refresh credit balance from server."""
+        try:
+            balance = api.get_balance()
+            self.credit_bar.set_balance(balance)
+            self._update_cost_estimate()
+            self.status_bar.showMessage("Balance refreshed")
+        except NetworkError:
+            self.status_bar.showMessage("Cannot connect to server")
+        except APIError as e:
+            self.status_bar.showMessage(f"Error: {e}")
+
+    def _on_topup(self):
+        dialog = TopUpDialog(self)
+        dialog.exec()
+
+    def _on_history(self):
+        """Show credit history from server."""
+        try:
+            transactions = api.get_history(limit=50)
+        except Exception:
+            transactions = []
+        balance = self.credit_bar.get_balance()
+        dialog = HistoryDialog(transactions, balance, self)
+        dialog.exec()
+
+    def _on_logout(self):
+        reply = QMessageBox.question(
+            self, "Logout",
+            "Are you sure you want to logout?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._auth_manager.logout()
+            self.status_bar.showMessage("Logged out")
+            logger.info("User logged out")
+            self.close()

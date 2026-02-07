@@ -1,0 +1,299 @@
+/* ============================================
+   BigEye Pro — Dark Navy Theme (QSS)
+   ============================================ */
+
+/* Main */
+QMainWindow, QWidget {
+  background: #1A1A2E;
+  color: #E8E8E8;
+  font: 13px "Helvetica Neue";
+}
+
+/* Inputs */
+QLineEdit, QTextEdit, QComboBox, QSpinBox {
+  background: #16213E;
+  border: 1px solid #1A3A6B;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #E8E8E8;
+}
+QLineEdit:focus, QTextEdit:focus {
+  border-color: #FF00CC;
+}
+
+/* ComboBox dropdown */
+QComboBox::drop-down {
+  border: none;
+  width: 30px;
+}
+QComboBox::down-arrow {
+  image: none;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #8892A8;
+  margin-right: 10px;
+}
+QComboBox QAbstractItemView {
+  background: #16213E;
+  border: 1px solid #1A3A6B;
+  color: #8892A8;
+  selection-background-color: #0F3460;
+  selection-color: #E8E8E8;
+  padding: 4px;
+  outline: none;
+}
+QComboBox QAbstractItemView::item {
+  padding: 6px 10px;
+  min-height: 24px;
+  color: #8892A8;
+}
+QComboBox QAbstractItemView::item:hover {
+  background: #0F3460;
+  color: #E8E8E8;
+}
+QComboBox QAbstractItemView::item:selected {
+  background: #0F3460;
+  color: #E8E8E8;
+}
+
+/* Ghost Buttons (default) */
+QPushButton {
+  background: transparent;
+  border: 1px solid #1A3A6B;
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: #8892A8;
+  font-weight: 500;
+}
+QPushButton:hover {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #FF00CC18, stop:1 #7B2FFF18);
+  border-color: #FF00CC66;
+  color: #FF00CC;
+}
+QPushButton:disabled {
+  color: #4A5568;
+  border-color: #1A3A6B44;
+}
+
+/* Gradient Pill Buttons */
+QPushButton#startButton, QPushButton#confirmButton, QPushButton#signInButton, QPushButton#registerButton {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #FF00CC, stop:0.5 #CC44FF, stop:1 #7B2FFF);
+  border: none;
+  border-radius: 22px;
+  padding: 12px 30px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+QPushButton#startButton:hover, QPushButton#confirmButton:hover, QPushButton#signInButton:hover, QPushButton#registerButton:hover {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #FF33D6, stop:0.5 #D966FF, stop:1 #9B59FF);
+}
+
+/* Stop Button */
+QPushButton#stopButton {
+  background: #FF4560;
+  border: none;
+  border-radius: 22px;
+  padding: 12px 30px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+}
+QPushButton#stopButton:hover {
+  background: #E63E56;
+}
+
+/* Export CSV Button */
+QPushButton#exportButton {
+  background: #00B4D80A;
+  border: 1px solid #00B4D844;
+  border-radius: 8px;
+  padding: 10px 20px;
+  color: #00B4D8;
+  font-size: 13px;
+  font-weight: 600;
+}
+QPushButton#exportButton:hover {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #FF00CC18, stop:1 #7B2FFF18);
+  border-color: #FF00CC66;
+  color: #FF00CC;
+}
+
+/* Chip Buttons (Top Bar) */
+QPushButton#chipButton {
+  background: transparent;
+  border: 1px solid #1A3A6B;
+  border-radius: 6px;
+  padding: 4px 10px;
+  color: #8892A8;
+  font-size: 11px;
+}
+QPushButton#chipButton:hover {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #FF00CC18, stop:1 #7B2FFF18);
+  border-color: #FF00CC66;
+  color: #FF00CC;
+}
+
+/* Top Up Chip (gold tint) */
+QPushButton#topUpChip {
+  background: #FFD70015;
+  border: 1px solid #FFD70033;
+  border-radius: 6px;
+  padding: 4px 10px;
+  color: #FFD700;
+  font-size: 11px;
+}
+QPushButton#topUpChip:hover {
+  background: #FFD70030;
+  border-color: #FFD70066;
+}
+
+/* Progress Bar */
+QProgressBar {
+  border: none;
+  border-radius: 3px;
+  background: #16213E;
+  height: 6px;
+  text-align: center;
+  color: transparent;
+}
+QProgressBar::chunk {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #FF00CC, stop:1 #7B2FFF);
+  border-radius: 3px;
+}
+
+/* Slider */
+QSlider::groove:horizontal {
+  height: 4px;
+  background: #1A3A6B;
+  border-radius: 2px;
+}
+QSlider::handle:horizontal {
+  background: #FF00CC;
+  width: 14px;
+  height: 14px;
+  margin: -5px 0;
+  border-radius: 7px;
+}
+QSlider::sub-page:horizontal {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #FF00CC, stop:1 #7B2FFF);
+  border-radius: 2px;
+  height: 4px;
+}
+
+/* Scrollbar */
+QScrollBar:vertical {
+  background: transparent;
+  width: 6px;
+}
+QScrollBar::handle:vertical {
+  background: #1A3A6B;
+  border-radius: 3px;
+  min-height: 30px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+  height: 0px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+  background: transparent;
+}
+QScrollBar:horizontal {
+  background: transparent;
+  height: 6px;
+}
+QScrollBar::handle:horizontal {
+  background: #1A3A6B;
+  border-radius: 3px;
+  min-width: 30px;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+  width: 0px;
+}
+
+/* Credit Label */
+QLabel#creditLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FFD700;
+}
+QLabel#creditLabelLow {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FF4560;
+}
+
+/* Section Divider Labels */
+QLabel#sectionLabel {
+  font-size: 10px;
+  color: #8892A8;
+  font-weight: 500;
+  letter-spacing: 1.2px;
+}
+
+/* Tab Selector (Auth) — styles applied inline via auth_window.py */
+
+/* Dialog Styles */
+QDialog {
+  background: #1A1A2E;
+  border: 1px solid #1A3A6B;
+  border-radius: 16px;
+}
+
+/* Table Widget (History) */
+QTableWidget {
+  background: #16213E;
+  border: 1px solid #1A3A6B;
+  border-radius: 8px;
+  gridline-color: #1A3A6B;
+  color: #E8E8E8;
+}
+QTableWidget::item {
+  padding: 8px;
+}
+QTableWidget::item:selected {
+  background: #0F3460;
+}
+QHeaderView::section {
+  background: #0F3460;
+  color: #8892A8;
+  border: none;
+  padding: 8px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* Tooltip */
+QToolTip {
+  background: #16213E;
+  color: #E8E8E8;
+  border: 1px solid #1A3A6B;
+  border-radius: 4px;
+  padding: 6px;
+  font-size: 12px;
+}
+
+/* QListWidget (Gallery) */
+QListWidget {
+  background: #1A1A2E;
+  border: none;
+  outline: none;
+}
+QListWidget::item {
+  background: transparent;
+  border: none;
+  padding: 4px;
+}
+QListWidget::item:selected {
+  background: transparent;
+  border: none;
+}
+
+/* QScrollArea */
+QScrollArea {
+  background: transparent;
+  border: none;
+}
+QScrollArea > QWidget > QWidget {
+  background: transparent;
+}
