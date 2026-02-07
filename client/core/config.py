@@ -13,7 +13,7 @@ KEYRING_JWT = "jwt_token"
 KEYRING_USER = "user_data"
 
 # Backend API
-API_BASE_URL = os.environ.get("BIGEYE_API_URL", "https://api.bigeye.pro")
+API_BASE_URL = os.environ.get("BIGEYE_API_URL", "http://localhost:8080/api/v1")
 
 # Directories
 HOME_DIR = os.path.expanduser("~")

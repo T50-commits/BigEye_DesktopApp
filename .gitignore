@@ -8,6 +8,7 @@ build/
 *.spec
 .env
 *.log
+firebase-service-account.json
 proxy_cache/
 recovery.json
 debug_log.txt
