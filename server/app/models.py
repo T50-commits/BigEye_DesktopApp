@@ -74,7 +74,8 @@ class ReserveJobRequest(BaseModel):
 
 class ReserveJobResponse(BaseModel):
     job_token: str
-    config: str = ""  # AES encrypted prompts
+    config: str = ""  # AES encrypted prompt
+    dictionary: str = ""  # keyword dictionary (iStock mode only)
     blacklist: list[str] = []
     concurrency: dict = {}
 

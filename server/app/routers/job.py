@@ -111,33 +111,33 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
         "created_at": now,
     })
 
-    # Load system config for prompts + blacklist
+    # Load system config for prompts + blacklist + dictionary
     config_doc = system_config_ref().document("app_settings").get()
     encrypted_config = ""
+    dictionary = ""
     blacklist = []
 
     if config_doc.exists:
         sys_config = config_doc.to_dict()
         blacklist = sys_config.get("blacklist", [])
 
-        # Build config payload and encrypt
-        mode_key = req.mode.lower().replace(" ", "_").replace("&", "")
-        prompt_key = f"prompt_{mode_key}" if mode_key != "istock" else "prompt_istock"
-        if req.keyword_style:
-            style_key = req.keyword_style.lower().replace(" ", "_")
-            if style_key == "single_words":
-                prompt_key = "prompt_single"
-            elif style_key == "hybrid":
-                prompt_key = "prompt_hybrid"
-
+        # Select prompt based on mode + keyword_style
         prompts = sys_config.get("prompts", {})
-        config_payload = json.dumps({
-            "system_prompt": prompts.get(prompt_key, ""),
-            "user_prompt": prompts.get("user_prompt", ""),
-        })
+        is_istock = "istock" in req.mode.lower()
 
+        if is_istock:
+            prompt_text = prompts.get("istock", "")
+            # Include dictionary for iStock mode (dictionary-strict)
+            dictionary = sys_config.get("dictionary", "")
+        elif req.keyword_style and "single" in req.keyword_style.lower():
+            prompt_text = prompts.get("single", "")
+        else:
+            # Default: hybrid (Adobe/Shutterstock)
+            prompt_text = prompts.get("hybrid", "")
+
+        # Encrypt prompt for delivery
         try:
-            encrypted_config = encrypt_aes(config_payload)
+            encrypted_config = encrypt_aes(prompt_text)
         except Exception as e:
             logger.warning(f"Config encryption failed: {e}")
 
@@ -159,6 +159,7 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
     return ReserveJobResponse(
         job_token=job_token,
         config=encrypted_config,
+        dictionary=dictionary,
         blacklist=blacklist,
         concurrency={
             "image": settings.MAX_CONCURRENT_IMAGES,
