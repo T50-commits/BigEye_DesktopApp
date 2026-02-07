@@ -109,11 +109,20 @@ MAX_RETRIES = 3
 # Credit rates per platform
 CREDIT_RATES = {"iStock": 3, "Adobe": 2, "Shutterstock": 2}
 
-# CSV column definitions (placeholders — will be populated from server config)
-ISTOCK_COLS_PHOTO = ["Filename", "Title", "Description", "Keywords", "Category"]
-ISTOCK_COLS_VIDEO = ["Filename", "Title", "Description", "Keywords", "Category"]
+# CSV column definitions (must match platform upload formats exactly)
+ISTOCK_COLS_PHOTO = [
+    "file name", "created date", "description", "country", "brief code",
+    "title", "keywords", "Niche Strategy", "Missing Keywords",
+]
+ISTOCK_COLS_VIDEO = [
+    "file name", "description", "country", "title", "keywords",
+    "poster timecode", "date created", "shot speed", "Missing Keywords",
+]
 ADOBE_CSV_COLUMNS = ["Filename", "Title", "Keywords", "Category", "Releases"]
-SHUTTERSTOCK_CSV_COLUMNS = ["Filename", "Description", "Keywords", "Categories", "Editorial"]
+SHUTTERSTOCK_CSV_COLUMNS = [
+    "Filename", "Description", "Keywords", "Categories",
+    "Illustration", "Mature Content", "Editorial",
+]
 
 
 def get_asset_path(relative_path: str) -> str:

@@ -45,15 +45,15 @@ class CSVExporter:
 
         # Export photos CSV
         if photos:
-            filepath = os.path.join(folder_path, f"iStock_Photos_{model}_{timestamp}.csv")
-            CSVExporter._write_istock_csv(filepath, photos, ISTOCK_COLS_PHOTO)
+            filepath = os.path.join(folder_path, f"Metadata iStock Photos_{model}_{timestamp}.csv")
+            CSVExporter._write_istock_photo_csv(filepath, photos, ISTOCK_COLS_PHOTO)
             csv_files.append(filepath)
             logger.info(f"iStock photos CSV: {len(photos)} files → {filepath}")
 
         # Export videos CSV
         if videos:
-            filepath = os.path.join(folder_path, f"iStock_Videos_{model}_{timestamp}.csv")
-            CSVExporter._write_istock_csv(filepath, videos, ISTOCK_COLS_VIDEO)
+            filepath = os.path.join(folder_path, f"Metadata iStock Videos_{model}_{timestamp}.csv")
+            CSVExporter._write_istock_video_csv(filepath, videos, ISTOCK_COLS_VIDEO)
             csv_files.append(filepath)
             logger.info(f"iStock videos CSV: {len(videos)} files → {filepath}")
 
@@ -66,7 +66,7 @@ class CSVExporter:
         Returns list of created CSV file paths.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filepath = os.path.join(folder_path, f"Adobe_{model}_{timestamp}.csv")
+        filepath = os.path.join(folder_path, f"Metadata Adobe_{model}_{timestamp}.csv")
 
         success = {fn: d for fn, d in results.items() if d.get("status") == "success"}
         if not success:
@@ -78,13 +78,13 @@ class CSVExporter:
                 writer.writerow(ADOBE_CSV_COLUMNS)
                 for filename, data in success.items():
                     keywords = data.get("keywords", [])
-                    kw_str = ",".join(keywords) if isinstance(keywords, list) else str(keywords)
+                    kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
                     writer.writerow([
-                        filename,
-                        data.get("title", ""),
-                        kw_str,
-                        data.get("category", ""),
-                        "",  # Releases
+                        filename,                          # Filename
+                        data.get("title", ""),             # Title
+                        kw_str,                            # Keywords
+                        data.get("category", ""),          # Category
+                        "",                                # Releases
                     ])
             logger.info(f"Adobe CSV: {len(success)} files → {filepath}")
             return [filepath]
@@ -99,7 +99,7 @@ class CSVExporter:
         Returns list of created CSV file paths.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filepath = os.path.join(folder_path, f"Shutterstock_{model}_{timestamp}.csv")
+        filepath = os.path.join(folder_path, f"Metadata Shutterstock_{model}_{timestamp}.csv")
 
         success = {fn: d for fn, d in results.items() if d.get("status") == "success"}
         if not success:
@@ -111,16 +111,18 @@ class CSVExporter:
                 writer.writerow(SHUTTERSTOCK_CSV_COLUMNS)
                 for filename, data in success.items():
                     keywords = data.get("keywords", [])
-                    kw_str = ",".join(keywords) if isinstance(keywords, list) else str(keywords)
+                    kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
                     categories = data.get("category", "")
                     if isinstance(categories, list):
                         categories = "/".join(categories)
                     writer.writerow([
-                        filename,
-                        data.get("description", ""),
-                        kw_str,
-                        categories,
-                        "no",  # Editorial
+                        filename,                          # Filename
+                        data.get("description", ""),       # Description
+                        kw_str,                            # Keywords
+                        categories,                        # Categories
+                        "No",                              # Illustration
+                        "No",                              # Mature Content
+                        "No",                              # Editorial
                     ])
             logger.info(f"Shutterstock CSV: {len(success)} files → {filepath}")
             return [filepath]
@@ -157,25 +159,53 @@ class CSVExporter:
     # ── Internal ──
 
     @staticmethod
-    def _write_istock_csv(filepath: str, results: dict, columns: list):
-        """Write iStock-format CSV."""
+    def _write_istock_photo_csv(filepath: str, results: dict, columns: list):
+        """Write iStock Photo CSV with correct column mapping."""
         try:
             with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(columns)
                 for filename, data in results.items():
                     keywords = data.get("keywords", [])
-                    kw_str = ",".join(keywords) if isinstance(keywords, list) else str(keywords)
-                    row = [
-                        filename,
-                        data.get("title", ""),
-                        data.get("description", ""),
-                        kw_str,
-                        data.get("category", ""),
-                    ]
-                    # Pad or trim to match columns
-                    while len(row) < len(columns):
-                        row.append("")
-                    writer.writerow(row[:len(columns)])
+                    kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
+                    missing = data.get("missing_keywords", [])
+                    missing_str = ", ".join(missing) if isinstance(missing, list) else str(missing)
+                    writer.writerow([
+                        filename,                              # file name
+                        data.get("created_date", ""),           # created date
+                        data.get("description", ""),            # description
+                        "",                                     # country
+                        "",                                     # brief code
+                        data.get("title", ""),                  # title
+                        kw_str,                                 # keywords
+                        data.get("niche_analysis", ""),         # Niche Strategy
+                        missing_str,                            # Missing Keywords
+                    ])
         except OSError as e:
-            logger.error(f"iStock CSV write failed: {e}")
+            logger.error(f"iStock Photo CSV write failed: {e}")
+
+    @staticmethod
+    def _write_istock_video_csv(filepath: str, results: dict, columns: list):
+        """Write iStock Video CSV with correct column mapping."""
+        try:
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(columns)
+                for filename, data in results.items():
+                    keywords = data.get("keywords", [])
+                    kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
+                    missing = data.get("missing_keywords", [])
+                    missing_str = ", ".join(missing) if isinstance(missing, list) else str(missing)
+                    writer.writerow([
+                        filename,                              # file name
+                        data.get("description", ""),            # description
+                        "",                                     # country
+                        data.get("title", ""),                  # title
+                        kw_str,                                 # keywords
+                        data.get("poster_timecode", ""),        # poster timecode
+                        data.get("created_date", ""),           # date created
+                        data.get("shot_speed", ""),             # shot speed
+                        missing_str,                            # Missing Keywords
+                    ])
+        except OSError as e:
+            logger.error(f"iStock Video CSV write failed: {e}")
