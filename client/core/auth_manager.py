@@ -64,8 +64,8 @@ class AuthManager:
         token = result.get("token", "")
         if token:
             save_to_keyring(KEYRING_SERVICE, KEYRING_JWT, token)
-            self._user_name = result.get("name", result.get("user", {}).get("name", ""))
-            self._user_email = result.get("email", result.get("user", {}).get("email", ""))
+            self._user_name = result.get("full_name", result.get("name", ""))
+            self._user_email = result.get("email", "")
             user_data = json.dumps({"name": self._user_name, "email": self._user_email})
             save_to_keyring(KEYRING_SERVICE, KEYRING_USER, user_data)
 

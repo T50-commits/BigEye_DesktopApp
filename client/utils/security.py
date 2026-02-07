@@ -45,10 +45,10 @@ def get_hardware_id() -> str:
 # AES Encryption / Decryption
 # ═══════════════════════════════════════
 
-def decrypt_aes(encrypted_b64: str, key_hex: str) -> str:
+def decrypt_aes(encrypted_data: str, key_hex: str) -> str:
     """
     Decrypt AES-CBC encrypted data.
-    Format: base64( IV_16bytes + ciphertext_PKCS7 )
+    Supports both hex and base64 encoded input: hex( IV + ciphertext ) or base64( IV + ciphertext ).
     Returns decrypted plaintext string.
     Raises ValueError on any decryption failure.
     """
@@ -57,7 +57,11 @@ def decrypt_aes(encrypted_b64: str, key_hex: str) -> str:
 
     try:
         key = bytes.fromhex(key_hex)
-        raw = base64.b64decode(encrypted_b64)
+        # Auto-detect format: hex strings contain only [0-9a-fA-F]
+        try:
+            raw = bytes.fromhex(encrypted_data)
+        except ValueError:
+            raw = base64.b64decode(encrypted_data)
         if len(raw) < 32:
             raise ValueError("Encrypted data too short (must be at least IV + 1 block)")
         iv = raw[:16]

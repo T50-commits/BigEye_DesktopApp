@@ -429,7 +429,7 @@ class AuthWindow(QDialog):
         """Handle successful login/register."""
         self._set_loading(False)
         token = result.get("token", "")
-        name = self._auth.user_name or result.get("name", "User")
+        name = self._auth.user_name or result.get("full_name", result.get("name", "User"))
         logger.info(f"Auth success: {name}")
         self.login_success.emit(token, name)
         self.accept()

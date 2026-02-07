@@ -44,26 +44,22 @@ def main():
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 
-    # Auth flow — skip for testing
+    # Auth flow
     auth_manager = AuthManager()
-    jwt_token = "dev_token"
-    user_name = "Developer"
-
-    # To enable auth, uncomment below and remove the 2 lines above:
-    # jwt_token = ""
-    # user_name = ""
-    # if auth_manager.has_valid_token():
-    #     jwt_token = "saved"
-    #     user_name = auth_manager.user_name or "User"
-    #     logger.info(f"Auto-login: {user_name}")
-    # else:
-    #     auth = AuthWindow(auth_manager=auth_manager)
-    #     def on_login(token, name):
-    #         nonlocal jwt_token, user_name
-    #         jwt_token, user_name = token, name
-    #     auth.login_success.connect(on_login)
-    #     if auth.exec() != AuthWindow.DialogCode.Accepted:
-    #         sys.exit(0)
+    jwt_token = ""
+    user_name = ""
+    if auth_manager.has_valid_token():
+        jwt_token = "saved"
+        user_name = auth_manager.user_name or "User"
+        logger.info(f"Auto-login: {user_name}")
+    else:
+        auth = AuthWindow(auth_manager=auth_manager)
+        def on_login(token, name):
+            nonlocal jwt_token, user_name
+            jwt_token, user_name = token, name
+        auth.login_success.connect(on_login)
+        if auth.exec() != AuthWindow.DialogCode.Accepted:
+            sys.exit(0)
 
     # Main window
     window = MainWindow(user_name=user_name, jwt_token=jwt_token, auth_manager=auth_manager)
