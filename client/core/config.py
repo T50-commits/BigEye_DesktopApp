@@ -112,11 +112,11 @@ CREDIT_RATES = {"iStock": 3, "Adobe": 2, "Shutterstock": 2}
 # CSV column definitions (must match platform upload formats exactly)
 ISTOCK_COLS_PHOTO = [
     "file name", "created date", "description", "country", "brief code",
-    "title", "keywords", "Niche Strategy", "Missing Keywords",
+    "title", "keywords",
 ]
 ISTOCK_COLS_VIDEO = [
     "file name", "description", "country", "title", "keywords",
-    "poster timecode", "date created", "shot speed", "Missing Keywords",
+    "poster timecode", "date created", "shot speed",
 ]
 ADOBE_CSV_COLUMNS = ["Filename", "Title", "Keywords", "Category", "Releases"]
 SHUTTERSTOCK_CSV_COLUMNS = [

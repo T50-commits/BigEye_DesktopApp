@@ -168,8 +168,6 @@ class CSVExporter:
                 for filename, data in results.items():
                     keywords = data.get("keywords", [])
                     kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
-                    missing = data.get("missing_keywords", [])
-                    missing_str = ", ".join(missing) if isinstance(missing, list) else str(missing)
                     writer.writerow([
                         filename,                              # file name
                         data.get("created_date", ""),           # created date
@@ -178,8 +176,6 @@ class CSVExporter:
                         "",                                     # brief code
                         data.get("title", ""),                  # title
                         kw_str,                                 # keywords
-                        data.get("niche_analysis", ""),         # Niche Strategy
-                        missing_str,                            # Missing Keywords
                     ])
         except OSError as e:
             logger.error(f"iStock Photo CSV write failed: {e}")
@@ -194,8 +190,6 @@ class CSVExporter:
                 for filename, data in results.items():
                     keywords = data.get("keywords", [])
                     kw_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
-                    missing = data.get("missing_keywords", [])
-                    missing_str = ", ".join(missing) if isinstance(missing, list) else str(missing)
                     writer.writerow([
                         filename,                              # file name
                         data.get("description", ""),            # description
@@ -205,7 +199,6 @@ class CSVExporter:
                         data.get("poster_timecode", ""),        # poster timecode
                         data.get("created_date", ""),           # date created
                         data.get("shot_speed", ""),             # shot speed
-                        missing_str,                            # Missing Keywords
                     ])
         except OSError as e:
             logger.error(f"iStock Video CSV write failed: {e}")
