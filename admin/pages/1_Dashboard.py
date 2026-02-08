@@ -1,23 +1,23 @@
 """
-BigEye Pro Admin — Dashboard Page
-Today's stats, revenue chart, user growth, pending actions.
+BigEye Pro Admin — หน้าแดชบอร์ด
+สถิติวันนี้, กราฟรายได้, การเติบโตผู้ใช้, รายการรอดำเนินการ
 """
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from utils.firestore_client import (
     users_ref, jobs_ref, slips_ref, transactions_ref, daily_reports_ref,
 )
 from utils.charts import revenue_chart, user_growth_chart
 
-st.header("📊 Dashboard")
+st.header("📊 แดชบอร์ด")
 
 # ── Helper: query Firestore with caching ──
 
 @st.cache_data(ttl=60)
 def load_today_stats():
     """Load today's key metrics from Firestore."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday_start = today_start - timedelta(days=1)
 
@@ -85,7 +85,7 @@ def load_today_stats():
 @st.cache_data(ttl=300)
 def load_daily_reports(days: int = 30):
     """Load daily reports for charts."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     revenue_data = []
     user_data = []
 
@@ -119,7 +119,7 @@ def load_pending_actions():
     except Exception:
         pass
 
-    expire_cutoff = datetime.utcnow() - timedelta(hours=2)
+    expire_cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
     try:
         docs = (
             jobs_ref()
@@ -136,18 +136,18 @@ def load_pending_actions():
 
 # ── Render ──
 
-if st.button("🔄 Refresh"):
+if st.button("🔄 รีเฟรช"):
     st.cache_data.clear()
 
 stats = load_today_stats()
 
 # Stats cards
 c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("👥 Active Users", stats["active_users"])
-c2.metric("🆕 New Users", stats["new_users"])
-c3.metric("💰 Revenue", f"฿{stats['revenue']:,}")
-c4.metric("⚙️ Jobs", stats["jobs"])
-c5.metric("❌ Errors", stats["errors"])
+c1.metric("👥 ผู้ใช้งาน", stats["active_users"])
+c2.metric("🆕 ผู้ใช้ใหม่", stats["new_users"])
+c3.metric("💰 รายได้", f"฿{stats['revenue']:,}")
+c4.metric("⚙️ งาน", stats["jobs"])
+c5.metric("❌ ข้อผิดพลาด", stats["errors"])
 
 st.divider()
 
@@ -156,23 +156,23 @@ revenue_data, user_data = load_daily_reports()
 
 col_left, col_right = st.columns(2)
 with col_left:
-    st.subheader("Revenue (Last 30 Days)")
+    st.subheader("รายได้ (30 วันล่าสุด)")
     st.plotly_chart(revenue_chart(revenue_data), use_container_width=True)
 
 with col_right:
-    st.subheader("User Growth (Last 30 Days)")
+    st.subheader("ผู้ใช้ใหม่ (30 วันล่าสุด)")
     st.plotly_chart(user_growth_chart(user_data), use_container_width=True)
 
 st.divider()
 
 # Pending actions
-st.subheader("⚠️ Pending Actions")
+st.subheader("⚠️ รายการรอดำเนินการ")
 pending_slips, stuck_jobs = load_pending_actions()
 
 if pending_slips == 0 and stuck_jobs == 0:
-    st.success("✅ No pending actions")
+    st.success("✅ ไม่มีรายการรอดำเนินการ")
 else:
     if pending_slips > 0:
-        st.warning(f"🧾 **{pending_slips}** slip(s) awaiting manual review")
+        st.warning(f"🧾 **{pending_slips}** สลิปรอตรวจสอบ")
     if stuck_jobs > 0:
-        st.error(f"⚙️ **{stuck_jobs}** job(s) stuck in RESERVED (expired)")
+        st.error(f"⚙️ **{stuck_jobs}** งานค้างในสถานะ RESERVED (หมดอายุ)")

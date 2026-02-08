@@ -44,25 +44,26 @@ st.markdown("""
 # ── Sidebar ──
 with st.sidebar:
     st.markdown("## 👁️ BigEye Pro")
-    st.markdown("**Admin Dashboard**")
+    st.markdown("**แผงควบคุมแอดมิน**")
     st.divider()
-    st.caption(f"Environment: `{os.getenv('ENVIRONMENT', 'development')}`")
+    st.caption(f"สภาพแวดล้อม: `{os.getenv('ENVIRONMENT', 'development')}`")
 
     st.divider()
-    if st.button("🚪 Logout", use_container_width=True):
+    if st.button("🚪 ออกจากระบบ", use_container_width=True):
         st.session_state["authenticated"] = False
         st.rerun()
 
-# ── Main content (redirect to Dashboard page) ──
-st.markdown("# 👁️ BigEye Pro — Admin Dashboard")
-st.info("👈 Use the sidebar to navigate between pages.")
+# ── Main content ──
+st.markdown("# 👁️ BigEye Pro — แผงควบคุมแอดมิน")
+st.info("👈 ใช้เมนูด้านซ้ายเพื่อเปลี่ยนหน้า")
 st.markdown("---")
 st.markdown(
-    "**Pages:**\n"
-    "- 📊 **Dashboard** — Today's stats, revenue, user growth\n"
-    "- 👥 **Users** — Manage users, credits, suspensions\n"
-    "- 🧾 **Slips** — Review top-up payment slips\n"
-    "- ⚙️ **Jobs** — Monitor processing jobs\n"
-    "- 🔧 **System Config** — App version, rates, prompts\n"
-    "- 📋 **Audit Logs** — System event logs\n"
+    "**หน้าต่างๆ:**\n"
+    "- 📊 **แดชบอร์ด** — สถิติวันนี้, รายได้, การเติบโตผู้ใช้\n"
+    "- 👥 **ผู้ใช้งาน** — จัดการผู้ใช้, เครดิต, ระงับบัญชี\n"
+    "- 🧾 **สลิปเติมเงิน** — ตรวจสอบสลิปการชำระเงิน\n"
+    "- ⚙️ **ตรวจสอบงาน** — ดูสถานะงานประมวลผล\n"
+    "- 🔧 **ตั้งค่าระบบ** — เวอร์ชันแอป, อัตราเครดิต, พรอมต์\n"
+    "- 📋 **บันทึกระบบ** — บันทึกเหตุการณ์ระบบ\n"
+    "- 🎁 **โปรโมชั่น** — จัดการโปรโมชั่นและแคมเปญ\n"
 )

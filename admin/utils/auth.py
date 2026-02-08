@@ -13,23 +13,23 @@ def check_password() -> bool:
 
     admin_password = os.getenv("ADMIN_PASSWORD", "admin")
 
-    st.set_page_config(page_title="BigEye Admin — Login", page_icon="🔐", layout="centered")
+    st.set_page_config(page_title="BigEye Admin — เข้าสู่ระบบ", page_icon="🔐", layout="centered")
 
     st.markdown(
         "<h1 style='text-align:center;'>🔐 BigEye Pro Admin</h1>"
-        "<p style='text-align:center; color:#888;'>Enter admin password to continue</p>",
+        "<p style='text-align:center; color:#888;'>กรอกรหัสผ่านแอดมินเพื่อดำเนินการต่อ</p>",
         unsafe_allow_html=True,
     )
 
     with st.form("login_form"):
-        password = st.text_input("Password", type="password", placeholder="Enter admin password")
-        submitted = st.form_submit_button("Login", use_container_width=True)
+        password = st.text_input("รหัสผ่าน", type="password", placeholder="กรอกรหัสผ่านแอดมิน")
+        submitted = st.form_submit_button("เข้าสู่ระบบ", use_container_width=True)
 
     if submitted:
         if password == admin_password:
             st.session_state["authenticated"] = True
             st.rerun()
         else:
-            st.error("❌ Incorrect password")
+            st.error("❌ รหัสผ่านไม่ถูกต้อง")
 
     return False

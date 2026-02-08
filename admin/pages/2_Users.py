@@ -1,27 +1,25 @@
 """
-BigEye Pro Admin — Users Page
-Search, view, adjust credits, suspend/unsuspend, reset hardware ID.
+BigEye Pro Admin — หน้าจัดการผู้ใช้
+ค้นหา, ดูข้อมูล, ปรับเครดิต, ระงับ/เปิดบัญชี, รีเซ็ต Hardware ID
 """
 import streamlit as st
-from datetime import datetime
+import pandas as pd
+from datetime import datetime, timezone
 from google.cloud.firestore_v1 import FieldFilter
 
 from utils.firestore_client import users_ref, transactions_ref, jobs_ref
 
 
-st.header("👥 Users")
+st.header("👥 ผู้ใช้งาน")
 
 
 # ── Data loading ──
 
 def search_users(query: str = "") -> list[dict]:
-    """Search users by email or name. Returns list of user dicts."""
     ref = users_ref()
     results = []
-
     try:
         if query:
-            # Search by email prefix
             docs = (
                 ref.where(filter=FieldFilter("email", ">=", query))
                 .where(filter=FieldFilter("email", "<=", query + "\uf8ff"))
@@ -32,8 +30,6 @@ def search_users(query: str = "") -> list[dict]:
                 d = doc.to_dict()
                 d["uid"] = doc.id
                 results.append(d)
-
-            # Also search by name if few results
             if len(results) < 5:
                 name_docs = (
                     ref.where(filter=FieldFilter("name", ">=", query))
@@ -54,13 +50,11 @@ def search_users(query: str = "") -> list[dict]:
                 d["uid"] = doc.id
                 results.append(d)
     except Exception as e:
-        st.error(f"Error loading users: {e}")
-
+        st.error(f"เกิดข้อผิดพลาดในการโหลดผู้ใช้: {e}")
     return results
 
 
 def get_user_jobs(uid: str, limit: int = 20) -> list[dict]:
-    """Get recent jobs for a user."""
     results = []
     try:
         docs = (
@@ -80,49 +74,50 @@ def get_user_jobs(uid: str, limit: int = 20) -> list[dict]:
 
 
 def format_time_ago(dt) -> str:
-    """Format a datetime as relative time ago."""
     if not dt:
         return "—"
-    if hasattr(dt, "timestamp"):
-        now = datetime.utcnow()
-        diff = now - dt
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        hours = diff.seconds // 3600
-        if hours > 0:
-            return f"{hours}h ago"
-        minutes = diff.seconds // 60
-        return f"{minutes}m ago"
+    try:
+        if hasattr(dt, "timestamp"):
+            now = datetime.now(timezone.utc)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            diff = now - dt
+            if diff.days > 0:
+                return f"{diff.days} วันก่อน"
+            hours = diff.seconds // 3600
+            if hours > 0:
+                return f"{hours} ชม.ก่อน"
+            minutes = diff.seconds // 60
+            return f"{minutes} นาทีก่อน"
+    except Exception:
+        pass
     return str(dt)
 
 
 # ── Search bar ──
 
-search_query = st.text_input("🔍 Search by email or name", placeholder="john@example.com")
+search_query = st.text_input("🔍 ค้นหาด้วยอีเมลหรือชื่อ", placeholder="john@example.com")
 
 users = search_users(search_query)
 
 if not users:
-    st.info("No users found.")
+    st.info("ไม่พบผู้ใช้")
     st.stop()
 
 # ── Users table ──
 
-st.caption(f"Showing {len(users)} user(s)")
+st.caption(f"แสดง {len(users)} ผู้ใช้")
 
-# Build table data
 table_data = []
 for u in users:
     table_data.append({
-        "Email": u.get("email", "—"),
-        "Name": u.get("name", "—"),
-        "Credits": u.get("credits", 0),
-        "Status": u.get("status", "active"),
-        "Last Active": format_time_ago(u.get("last_login")),
+        "อีเมล": u.get("email", "—"),
+        "ชื่อ": u.get("name", "—"),
+        "เครดิต": u.get("credits", 0),
+        "สถานะ": u.get("status", "active"),
+        "ใช้งานล่าสุด": format_time_ago(u.get("last_login")),
     })
 
-# Display as selectable dataframe
-import pandas as pd
 df = pd.DataFrame(table_data)
 
 event = st.dataframe(
@@ -145,38 +140,37 @@ if selected_rows:
     st.divider()
     st.subheader(f"👤 {user.get('email', '—')}")
 
-    # Info grid
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown(f"**Name:** {user.get('name', '—')}")
-        st.markdown(f"**Phone:** {user.get('phone', '—')}")
+        st.markdown(f"**ชื่อ:** {user.get('name', '—')}")
+        st.markdown(f"**โทรศัพท์:** {user.get('phone', '—')}")
         st.markdown(f"**Hardware ID:** `{user.get('hardware_id', '—')}`")
     with col2:
-        st.markdown(f"**Credits:** {user.get('credits', 0):,}")
-        st.markdown(f"**Total Top-up:** ฿{user.get('total_topup', 0):,}")
-        st.markdown(f"**Status:** {user.get('status', 'active')}")
+        st.markdown(f"**เครดิต:** {user.get('credits', 0):,}")
+        st.markdown(f"**เติมเงินรวม:** ฿{user.get('total_topup', 0):,}")
+        st.markdown(f"**สถานะ:** {user.get('status', 'active')}")
     with col3:
         created = user.get("created_at", "—")
         if hasattr(created, "strftime"):
             created = created.strftime("%Y-%m-%d")
-        st.markdown(f"**Registered:** {created}")
-        st.markdown(f"**Last Login:** {format_time_ago(user.get('last_login'))}")
-        st.markdown(f"**App Version:** {user.get('app_version', '—')}")
+        st.markdown(f"**สมัครเมื่อ:** {created}")
+        st.markdown(f"**เข้าสู่ระบบล่าสุด:** {format_time_ago(user.get('last_login'))}")
+        st.markdown(f"**เวอร์ชันแอป:** {user.get('app_version', '—')}")
 
     st.divider()
 
     # ── Actions ──
-    st.subheader("Actions")
+    st.subheader("จัดการ")
 
     act_col1, act_col2, act_col3 = st.columns(3)
 
     # Adjust Credits
     with act_col1:
-        st.markdown("**Adjust Credits**")
+        st.markdown("**ปรับเครดิต**")
         with st.form(f"adjust_{uid}", clear_on_submit=True):
-            adj_amount = st.number_input("Amount (+/-)", value=0, step=100, key=f"adj_amt_{uid}")
-            adj_reason = st.text_input("Reason", key=f"adj_reason_{uid}")
-            adj_submit = st.form_submit_button("Apply")
+            adj_amount = st.number_input("จำนวน (+/-)", value=0, step=100, key=f"adj_amt_{uid}")
+            adj_reason = st.text_input("เหตุผล", key=f"adj_reason_{uid}")
+            adj_submit = st.form_submit_button("ยืนยัน")
 
         if adj_submit and adj_amount != 0:
             try:
@@ -185,66 +179,65 @@ if selected_rows:
                 new_balance = max(0, current + adj_amount)
                 user_doc.update({"credits": new_balance})
 
-                # Create transaction record
                 transactions_ref().add({
                     "uid": uid,
                     "type": "adjustment",
                     "amount": adj_amount,
                     "balance_after": new_balance,
-                    "description": f"Admin adjustment: {adj_reason or 'No reason'}",
-                    "created_at": datetime.utcnow(),
+                    "description": f"แอดมินปรับ: {adj_reason or 'ไม่ระบุเหตุผล'}",
+                    "created_at": datetime.now(timezone.utc),
                     "admin": True,
                 })
 
-                st.success(f"✅ Credits adjusted: {current:,} → {new_balance:,}")
+                st.success(f"✅ ปรับเครดิตแล้ว: {current:,} → {new_balance:,}")
                 st.cache_data.clear()
                 st.rerun()
             except Exception as e:
-                st.error(f"Failed: {e}")
+                st.error(f"ล้มเหลว: {e}")
 
     # Suspend / Unsuspend
     with act_col2:
-        st.markdown("**Account Status**")
+        st.markdown("**สถานะบัญชี**")
         current_status = user.get("status", "active")
 
         if current_status == "active":
-            if st.button("🔴 Suspend User", key=f"suspend_{uid}"):
+            if st.button("🔴 ระงับบัญชี", key=f"suspend_{uid}"):
                 try:
                     users_ref().document(uid).update({"status": "suspended"})
-                    st.success("User suspended")
+                    st.success("ระงับบัญชีแล้ว")
                     st.cache_data.clear()
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Failed: {e}")
+                    st.error(f"ล้มเหลว: {e}")
         else:
-            if st.button("🟢 Unsuspend User", key=f"unsuspend_{uid}"):
+            if st.button("🟢 เปิดบัญชี", key=f"unsuspend_{uid}"):
                 try:
                     users_ref().document(uid).update({"status": "active"})
-                    st.success("User unsuspended")
+                    st.success("เปิดบัญชีแล้ว")
                     st.cache_data.clear()
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Failed: {e}")
+                    st.error(f"ล้มเหลว: {e}")
 
     # Reset Hardware ID
     with act_col3:
         st.markdown("**Hardware ID**")
         st.code(user.get("hardware_id", "—"), language=None)
-        if st.button("🔄 Reset Hardware ID", key=f"reset_hw_{uid}"):
+        if st.button("🔄 รีเซ็ต Hardware ID", key=f"reset_hw_{uid}"):
             try:
                 users_ref().document(uid).update({"hardware_id": ""})
-                st.success("Hardware ID reset")
+                st.success("รีเซ็ต Hardware ID แล้ว")
                 st.cache_data.clear()
                 st.rerun()
             except Exception as e:
-                st.error(f"Failed: {e}")
+                st.error(f"ล้มเหลว: {e}")
 
     # ── User's Job History ──
     st.divider()
-    with st.expander("📋 View Job History"):
+    with st.expander("📋 ดูประวัติงาน"):
         user_jobs = get_user_jobs(uid)
         if not user_jobs:
-            st.info("No jobs found for this user.")
+            st.info("ไม่พบประวัติงานของผู้ใช้นี้")
         else:
             job_table = []
             for j in user_jobs:
@@ -253,9 +246,9 @@ if selected_rows:
                     created = created.strftime("%Y-%m-%d %H:%M")
                 job_table.append({
                     "Token": j.get("id", "")[:8] + "...",
-                    "Mode": j.get("mode", "—"),
-                    "Files": j.get("file_count", 0),
-                    "Status": j.get("status", "—"),
-                    "Created": created,
+                    "โหมด": j.get("mode", "—"),
+                    "ไฟล์": j.get("file_count", 0),
+                    "สถานะ": j.get("status", "—"),
+                    "สร้างเมื่อ": created,
                 })
             st.dataframe(pd.DataFrame(job_table), use_container_width=True, hide_index=True)

@@ -1,56 +1,56 @@
 """
-BigEye Pro Admin — Slips (Top-Up Management) Page
-Filter, view slip image, approve/reject slips, flag duplicates.
+BigEye Pro Admin — หน้าจัดการสลิป (เติมเงิน)
+กรองสถานะ, ดูภาพสลิป, อนุมัติ/ปฏิเสธ
 """
 import streamlit as st
+import pandas as pd
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 from google.cloud.firestore_v1 import FieldFilter
 
 from utils.firestore_client import slips_ref, users_ref, transactions_ref
 
 
-st.header("🧾 Slips")
+st.header("🧾 สลิปเติมเงิน")
 
 
 # ── Data loading ──
 
 def load_slips(status_filter: str = "ALL", limit: int = 100) -> list[dict]:
-    """Load slips from Firestore with optional status filter."""
     results = []
     try:
         ref = slips_ref()
         if status_filter != "ALL":
-            query = (
-                ref.where(filter=FieldFilter("status", "==", status_filter))
-                .order_by("created_at", direction="DESCENDING")
-                .limit(limit)
-            )
+            # Use simple filter without ordering to avoid composite index requirement
+            query = ref.where(filter=FieldFilter("status", "==", status_filter)).limit(limit)
         else:
-            query = ref.order_by("created_at", direction="DESCENDING").limit(limit)
+            query = ref.limit(limit)
 
-        for doc in query.stream():
+        docs = list(query.stream())
+        # Sort in Python to avoid Firestore composite index
+        docs.sort(
+            key=lambda d: d.to_dict().get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+        for doc in docs[:limit]:
             d = doc.to_dict()
             d["id"] = doc.id
             results.append(d)
     except Exception as e:
-        st.error(f"Error loading slips: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการโหลดสลิป: {e}")
     return results
 
 
 def approve_slip(slip_id: str, slip: dict, credit_amount: int):
-    """Approve a slip: update status, add credits, create transaction."""
     uid = slip.get("uid", "")
     amount_thb = slip.get("amount", 0)
 
-    # Update slip status
     slips_ref().document(slip_id).update({
         "status": "VERIFIED",
-        "verified_at": datetime.utcnow(),
+        "verified_at": datetime.now(timezone.utc),
         "credit_amount": credit_amount,
     })
 
-    # Add credits to user
     user_doc = users_ref().document(uid)
     user_snap = user_doc.get()
     if user_snap.exists:
@@ -63,7 +63,6 @@ def approve_slip(slip_id: str, slip: dict, credit_amount: int):
             "total_topup": total_topup,
         })
 
-        # Create transaction
         transactions_ref().add({
             "uid": uid,
             "type": "topup",
@@ -71,16 +70,15 @@ def approve_slip(slip_id: str, slip: dict, credit_amount: int):
             "amount_thb": amount_thb,
             "balance_after": new_balance,
             "slip_id": slip_id,
-            "description": f"Top-up {amount_thb} THB → {credit_amount} credits",
-            "created_at": datetime.utcnow(),
+            "description": f"เติมเงิน {amount_thb} บาท → {credit_amount} เครดิต",
+            "created_at": datetime.now(timezone.utc),
         })
 
 
 def reject_slip(slip_id: str, reason: str):
-    """Reject a slip with reason."""
     slips_ref().document(slip_id).update({
         "status": "REJECTED",
-        "rejected_at": datetime.utcnow(),
+        "rejected_at": datetime.now(timezone.utc),
         "reject_reason": reason,
     })
 
@@ -90,13 +88,13 @@ def reject_slip(slip_id: str, reason: str):
 col_filter, col_refresh = st.columns([3, 1])
 with col_filter:
     status_filter = st.selectbox(
-        "Filter by status",
+        "กรองตามสถานะ",
         ["PENDING", "VERIFIED", "REJECTED", "ALL"],
         index=0,
     )
 with col_refresh:
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔄 Refresh"):
+    if st.button("🔄 รีเฟรช"):
         st.cache_data.clear()
         st.rerun()
 
@@ -104,25 +102,23 @@ with col_refresh:
 slips = load_slips(status_filter)
 
 if not slips:
-    st.info(f"No slips with status: {status_filter}")
+    st.info(f"ไม่พบสลิปที่มีสถานะ: {status_filter}")
     st.stop()
 
-st.caption(f"Showing {len(slips)} slip(s)")
+st.caption(f"แสดง {len(slips)} รายการ")
 
 # ── Slips table ──
-
-import pandas as pd
 
 table_data = []
 for s in slips:
     created = s.get("created_at", "")
     if hasattr(created, "strftime"):
-        created = created.strftime("%m/%d %H:%M")
+        created = created.strftime("%d/%m %H:%M")
     table_data.append({
-        "Date": created,
-        "User": s.get("email", s.get("uid", "—")[:12]),
-        "Amount": f"{s.get('amount', 0)} THB",
-        "Status": s.get("status", "—"),
+        "วันที่": created,
+        "ผู้ใช้": s.get("email", s.get("uid", "—")[:12]),
+        "จำนวน": f"{s.get('amount', 0)} บาท",
+        "สถานะ": s.get("status", "—"),
     })
 
 df = pd.DataFrame(table_data)
@@ -144,53 +140,48 @@ if selected_rows:
     slip_id = slip.get("id", "")
 
     st.divider()
-    st.subheader("🔍 Slip Review")
+    st.subheader("🔍 ตรวจสอบสลิป")
 
     review_left, review_right = st.columns([1, 1])
 
     with review_left:
-        # Show slip image
         slip_image = slip.get("slip_base64", slip.get("slip_image", ""))
         if slip_image:
             try:
-                # Handle both raw base64 and data URI
                 if slip_image.startswith("data:"):
                     img_data = slip_image.split(",", 1)[1]
                 else:
                     img_data = slip_image
                 img_bytes = base64.b64decode(img_data)
-                st.image(img_bytes, caption="Payment Slip", use_container_width=True)
+                st.image(img_bytes, caption="สลิปการชำระเงิน", use_container_width=True)
             except Exception:
-                st.warning("Cannot display slip image")
+                st.warning("ไม่สามารถแสดงภาพสลิปได้")
         else:
-            st.info("No slip image attached")
+            st.info("ไม่มีภาพสลิปแนบ")
 
     with review_right:
-        # Slip info
-        st.markdown(f"**User:** {slip.get('email', slip.get('uid', '—'))}")
-        st.markdown(f"**Amount:** {slip.get('amount', 0)} THB")
+        st.markdown(f"**ผู้ใช้:** {slip.get('email', slip.get('uid', '—'))}")
+        st.markdown(f"**จำนวน:** {slip.get('amount', 0)} บาท")
 
         bank_ref = slip.get("bank_ref", slip.get("reference", "—"))
-        st.markdown(f"**Bank Ref:** {bank_ref}")
+        st.markdown(f"**เลขอ้างอิงธนาคาร:** {bank_ref}")
 
         created = slip.get("created_at", "—")
         if hasattr(created, "strftime"):
             created = created.strftime("%Y-%m-%d %H:%M:%S")
-        st.markdown(f"**Submitted:** {created}")
+        st.markdown(f"**ส่งเมื่อ:** {created}")
 
-        st.markdown(f"**Status:** {slip.get('status', '—')}")
+        st.markdown(f"**สถานะ:** {slip.get('status', '—')}")
 
-        # Actions for PENDING slips
         if slip.get("status") == "PENDING":
             st.divider()
 
-            # Credit calculation
             amount_thb = slip.get("amount", 0)
-            exchange_rate = 4  # default
+            exchange_rate = 4
             default_credits = amount_thb * exchange_rate
 
             credit_amount = st.number_input(
-                "Credit amount",
+                "จำนวนเครดิต",
                 value=default_credits,
                 min_value=0,
                 step=100,
@@ -200,29 +191,29 @@ if selected_rows:
             action_col1, action_col2 = st.columns(2)
 
             with action_col1:
-                if st.button("✅ Approve", key=f"approve_{slip_id}", type="primary"):
+                if st.button("✅ อนุมัติ", key=f"approve_{slip_id}", type="primary"):
                     try:
                         approve_slip(slip_id, slip, credit_amount)
-                        st.success(f"✅ Approved: +{credit_amount:,} credits")
+                        st.success(f"✅ อนุมัติแล้ว: +{credit_amount:,} เครดิต")
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Failed: {e}")
+                        st.error(f"ล้มเหลว: {e}")
 
             with action_col2:
                 reject_reason = st.text_input(
-                    "Reject reason",
+                    "เหตุผลที่ปฏิเสธ",
                     key=f"reject_reason_{slip_id}",
-                    placeholder="Duplicate / Invalid / etc.",
+                    placeholder="ซ้ำ / ไม่ถูกต้อง / อื่นๆ",
                 )
-                if st.button("❌ Reject", key=f"reject_{slip_id}"):
+                if st.button("❌ ปฏิเสธ", key=f"reject_{slip_id}"):
                     if not reject_reason:
-                        st.warning("Please provide a reason")
+                        st.warning("กรุณาระบุเหตุผล")
                     else:
                         try:
                             reject_slip(slip_id, reject_reason)
-                            st.success("❌ Slip rejected")
+                            st.success("❌ ปฏิเสธสลิปแล้ว")
                             st.cache_data.clear()
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Failed: {e}")
+                            st.error(f"ล้มเหลว: {e}")
