@@ -57,12 +57,39 @@ def search_users(query: str = "") -> list[dict]:
 def get_user_jobs(uid: str, limit: int = 20) -> list[dict]:
     results = []
     try:
-        docs = (
+        # Simple filter only — sort in Python to avoid composite index
+        docs = list(
             jobs_ref()
             .where(filter=FieldFilter("user_id", "==", uid))
-            .order_by("created_at", direction="DESCENDING")
             .limit(limit)
             .stream()
+        )
+        docs.sort(
+            key=lambda d: d.to_dict().get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+        for doc in docs:
+            d = doc.to_dict()
+            d["id"] = doc.id
+            results.append(d)
+    except Exception as e:
+        import streamlit as _st
+        _st.warning(f"โหลดประวัติงานไม่ได้: {e}")
+    return results
+
+
+def get_user_transactions(uid: str, limit: int = 30) -> list[dict]:
+    results = []
+    try:
+        docs = list(
+            transactions_ref()
+            .where(filter=FieldFilter("user_id", "==", uid))
+            .limit(limit)
+            .stream()
+        )
+        docs.sort(
+            key=lambda d: d.to_dict().get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
         )
         for doc in docs:
             d = doc.to_dict()
@@ -232,9 +259,30 @@ if selected_rows:
             except Exception as e:
                 st.error(f"ล้มเหลว: {e}")
 
-    # ── User's Job History ──
+    # ── User's History ──
     st.divider()
-    with st.expander("📋 ดูประวัติงาน"):
+    hist_tab1, hist_tab2 = st.tabs(["💳 ประวัติเครดิต", "📋 ประวัติงาน"])
+
+    with hist_tab1:
+        txns = get_user_transactions(uid)
+        if not txns:
+            st.info("ไม่พบประวัติเครดิตของผู้ใช้นี้")
+        else:
+            tx_table = []
+            for t in txns:
+                created = t.get("created_at", "")
+                if hasattr(created, "strftime"):
+                    created = created.strftime("%Y-%m-%d %H:%M")
+                amount = t.get("amount", 0)
+                tx_table.append({
+                    "วันที่": created,
+                    "รายการ": t.get("description", t.get("type", "—")),
+                    "จำนวน": f"{'+' if amount > 0 else ''}{amount:,}",
+                    "คงเหลือ": f"{t.get('balance_after', '—'):,}" if isinstance(t.get('balance_after'), (int, float)) else "—",
+                })
+            st.dataframe(pd.DataFrame(tx_table), use_container_width=True, hide_index=True)
+
+    with hist_tab2:
         user_jobs = get_user_jobs(uid)
         if not user_jobs:
             st.info("ไม่พบประวัติงานของผู้ใช้นี้")
@@ -245,7 +293,7 @@ if selected_rows:
                 if hasattr(created, "strftime"):
                     created = created.strftime("%Y-%m-%d %H:%M")
                 job_table.append({
-                    "Token": j.get("id", "")[:8] + "...",
+                    "Token": j.get("job_token", j.get("id", ""))[:12] + "...",
                     "โหมด": j.get("mode", "—"),
                     "ไฟล์": j.get("file_count", 0),
                     "สถานะ": j.get("status", "—"),
