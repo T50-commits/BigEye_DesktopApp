@@ -2,7 +2,7 @@
 BigEye Pro — Keyword Processor (Task B-07)
 Handles keyword cleaning, deduplication, stemming, and blacklist filtering.
 Supports 3 styles: iStock (keep phrases), Hybrid (phrase + single), Single words.
-Uses NLTK Lancaster stemmer for aggressive stem-based dedup.
+Uses NLTK Snowball stemmer for stem-based dedup (matches Streamlit logic).
 """
 import re
 import logging
@@ -14,12 +14,12 @@ logger = logging.getLogger("bigeye")
 _stemmer = None
 
 def _get_stemmer():
-    """Lazy-load Lancaster stemmer."""
+    """Lazy-load Snowball stemmer (matches Streamlit)."""
     global _stemmer
     if _stemmer is None:
         try:
-            from nltk.stem import LancasterStemmer
-            _stemmer = LancasterStemmer()
+            from nltk.stem import SnowballStemmer
+            _stemmer = SnowballStemmer("english")
         except ImportError:
             logger.warning("NLTK not available, stemming disabled")
             _stemmer = None
@@ -27,18 +27,28 @@ def _get_stemmer():
 
 
 # ═══════════════════════════════════════
-# Irregular words (stem → preferred form)
+# Irregular words: surface form → base form
+# Applied BEFORE stemming (matches Streamlit irregular_map)
 # ═══════════════════════════════════════
 
-IRREGULAR_WORDS = {
-    "wom": "women", "man": "men", "child": "children",
-    "person": "people", "foot": "feet", "tooth": "teeth",
-    "goose": "geese", "mouse": "mice", "ox": "oxen",
-    "leav": "leaves", "lif": "life", "knif": "knife",
-    "wif": "wife", "shelv": "shelf", "cact": "cactus",
-    "analys": "analysis", "dat": "data", "medium": "media",
-    "octop": "octopus", "rad": "radius", "alumn": "alumni",
-    "fungus": "fungi", "syllab": "syllabus",
+IRREGULAR_MAP = {
+    "women": "woman", "men": "man", "children": "child",
+    "people": "person", "feet": "foot", "teeth": "tooth",
+    "mice": "mouse", "geese": "goose",
+    "better": "good", "best": "good",
+    "running": "run", "runner": "run", "runs": "run",
+    "walking": "walk", "walked": "walk", "walks": "walk",
+    "smiling": "smile", "smiled": "smile", "smiles": "smile",
+    "working": "work", "worked": "work", "works": "work",
+}
+
+# Built-in blacklist for generic/filler words (matches Streamlit)
+GENERIC_BLACKLIST = {
+    "filter", "presets", "instagram", "tiktok", "4k", "hd", "8k", "1080p",
+    "macbook", "iphone", "samsung", "sony", "canon", "nikon",
+    "facebook", "twitter", "youtube", "generated",
+    "image", "photo", "picture", "shot", "concept", "view", "background",
+    "of", "the", "a", "an", "with", "in", "on", "at", "by",
 }
 
 
@@ -152,49 +162,38 @@ class KeywordProcessor:
 
     def _stem_dedup(self, words: list) -> list:
         """
-        Stem-based deduplication: group words by stem, keep the shortest
-        surface form in each group. Handles irregular plurals.
+        Stem-based deduplication (matches Streamlit finalize_keywords_v5_ai_driven):
+        1. Apply IRREGULAR_MAP before stemming (women→woman, running→run)
+        2. Stem with SnowballStemmer
+        3. Keep shortest surface form per stem group
         """
         stemmer = _get_stemmer()
         if stemmer is None:
-            # Fallback: simple case-insensitive dedup
             return self._dedup_case_insensitive(words)
 
-        # stem → list of surface forms
-        stem_groups: dict[str, list] = {}
+        # {stem: best_word} — keep shortest word per stem
+        stem_best = {}
         for word in words:
             w_lower = word.lower()
+
+            # Skip generic blacklist words
+            if w_lower in GENERIC_BLACKLIST:
+                continue
+
+            # Apply irregular map BEFORE stemming (matches Streamlit)
+            if w_lower in IRREGULAR_MAP:
+                w_lower = IRREGULAR_MAP[w_lower]
+
             stem = stemmer.stem(w_lower)
 
-            # Check irregular words — override stem
-            if stem in IRREGULAR_WORDS:
-                preferred = IRREGULAR_WORDS[stem]
-                stem = stemmer.stem(preferred)
+            if stem in stem_best:
+                # Keep the shorter word
+                if len(w_lower) < len(stem_best[stem]):
+                    stem_best[stem] = w_lower
+            else:
+                stem_best[stem] = w_lower
 
-            if stem not in stem_groups:
-                stem_groups[stem] = []
-            stem_groups[stem].append(word)
-
-        # Pick shortest surface form per stem group
-        result = []
-        for stem, forms in stem_groups.items():
-            # Deduplicate forms case-insensitively first
-            unique_forms = {}
-            for f in forms:
-                key = f.lower()
-                if key not in unique_forms or len(f) < len(unique_forms[key]):
-                    unique_forms[key] = f
-
-            # Pick the shortest
-            best = min(unique_forms.values(), key=len)
-
-            # Check irregular: if stem maps to a preferred form, use it
-            if stem in IRREGULAR_WORDS:
-                best = IRREGULAR_WORDS[stem]
-
-            result.append(best)
-
-        return result
+        return list(stem_best.values())
 
     def _filter_blacklist(self, keywords: list) -> list:
         """Remove keywords that contain any blacklisted word."""

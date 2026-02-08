@@ -321,8 +321,16 @@ class JobManager(QObject):
         # ── Export CSV ──
         csv_files = []
         if ok > 0 and self._folder_path:
+            keyword_style = self._settings.get("keyword_style", "")
+            # Shorten style name for filename
+            if keyword_style.lower().startswith("single"):
+                style_tag = "Single"
+            elif "hybrid" in keyword_style.lower():
+                style_tag = "Hybrid"
+            else:
+                style_tag = ""
             csv_files = CSVExporter.export_for_platform(
-                platform, self._results, self._folder_path, model,
+                platform, self._results, self._folder_path, model, style_tag,
             )
 
         # ── Play completion sound ──

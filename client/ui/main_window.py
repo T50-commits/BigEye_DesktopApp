@@ -419,6 +419,10 @@ class MainWindow(QMainWindow):
         )
         dialog.exec()
 
+        # Reset gallery + inspector for next run
+        self.gallery.reset_file_statuses()
+        self.inspector.clear()
+
     def _on_job_failed(self, error_message: str):
         """Handle job failure from JobManager."""
         self._is_processing = False
