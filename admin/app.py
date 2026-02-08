@@ -23,99 +23,57 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ──
-st.markdown("""
-<style>
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0a1628 0%, #111d35 100%);
-    }
-    [data-testid="stSidebar"] * {
-        color: #c8d6e5 !important;
-    }
-    [data-testid="stSidebar"] .stButton button {
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.15);
-        color: #fff !important;
-        border-radius: 8px;
-        transition: background 0.2s;
-    }
-    [data-testid="stSidebar"] .stButton button:hover {
-        background: rgba(255,255,255,0.18);
-    }
-
-    /* Main */
-    .block-container { padding-top: 1.5rem; }
-
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 18px 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    }
-    [data-testid="stMetricValue"] { font-size: 1.6rem !important; font-weight: 700 !important; color: #1e293b !important; }
-    [data-testid="stMetricLabel"] { font-size: 0.85rem !important; color: #64748b !important; text-transform: uppercase; letter-spacing: 0.05em; }
-
-    /* Headers */
-    h1 { color: #0f172a !important; font-weight: 800 !important; }
-    h2 { color: #1e293b !important; }
-
-    /* Expanders */
-    [data-testid="stExpander"] {
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        margin-bottom: 8px;
-    }
-
-    /* Forms */
-    [data-testid="stForm"] {
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 20px;
-        background: #fafbfc;
-    }
-
-    /* Dataframe */
-    [data-testid="stDataFrame"] {
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 4px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px 8px 0 0;
-        padding: 8px 20px;
-    }
-
-    /* Nav card */
-    .nav-card {
-        background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 12px;
-        transition: transform 0.15s, box-shadow 0.15s;
-    }
-    .nav-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-    .nav-card h3 { margin: 0 0 6px 0; font-size: 1.1rem; color: #1e293b; }
-    .nav-card p { margin: 0; color: #64748b; font-size: 0.9rem; }
-</style>
-""", unsafe_allow_html=True)
+# ── Import shared theme ──
+from utils.theme import inject_css
+inject_css()
 
 # ── Sidebar ──
 with st.sidebar:
-    st.markdown("## 👁️ BigEye Pro")
-    st.markdown("**แผงควบคุมแอดมิน**")
+    st.markdown("""
+    <div style="
+        text-align: center;
+        padding: 16px 0 8px 0;
+    ">
+        <div style="
+            font-size: 1.4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #FF00CC, #7B2FFF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        ">👁 BigEye Pro</div>
+        <div style="
+            font-size: 0.75rem;
+            color: #4A5568;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-top: 4px;
+        ">Admin Dashboard</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.divider()
-    st.caption(f"สภาพแวดล้อม: `{os.getenv('ENVIRONMENT', 'development')}`")
+
+    env = os.getenv("ENVIRONMENT", "development")
+    env_color = "#00E396" if env == "production" else "#FEB019"
+    st.markdown(f"""
+    <div style="
+        background: rgba(255,255,255,0.03);
+        border: 1px solid #1E2A45;
+        border-radius: 8px;
+        padding: 10px 14px;
+        text-align: center;
+    ">
+        <span style="
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: {env_color};
+            margin-right: 6px;
+        "></span>
+        <span style="font-size:0.8rem;color:#8892A8">{env}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.divider()
     if st.button("🚪 ออกจากระบบ", use_container_width=True):
@@ -128,17 +86,37 @@ st.markdown("##### แผงควบคุมสำหรับผู้ดู�
 st.markdown("")
 
 # Navigation cards
+def _nav_card(icon: str, title: str, desc: str, color: str) -> str:
+    return f"""
+    <div style="
+        background: linear-gradient(135deg, #1A2035 0%, #111827 100%);
+        border: 1px solid #1E2A45;
+        border-radius: 14px;
+        padding: 24px 20px;
+        margin-bottom: 12px;
+        transition: all 0.15s;
+        cursor: pointer;
+    "
+    onmouseover="this.style.borderColor='rgba(255,0,204,0.3)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(0,0,0,0.3)'"
+    onmouseout="this.style.borderColor='#1E2A45'; this.style.transform='translateY(0)'; this.style.boxShadow='none'"
+    >
+        <div style="font-size:1.8rem;margin-bottom:10px">{icon}</div>
+        <div style="font-weight:700;font-size:1.05rem;color:#E8ECF4;margin-bottom:4px">{title}</div>
+        <div style="color:#8892A8;font-size:0.85rem;line-height:1.4">{desc}</div>
+    </div>
+    """
+
 _pages = [
-    ("📊", "แดชบอร์ด", "สถิติวันนี้ รายได้ การเติบโตผู้ใช้"),
-    ("👥", "ผู้ใช้งาน", "จัดการผู้ใช้ เครดิต ระงับ/เปิดบัญชี"),
-    ("🧾", "สลิปเติมเงิน", "ตรวจสอบ อนุมัติ/ปฏิเสธสลิป"),
-    ("⚙️", "ตรวจสอบงาน", "ดูสถานะงาน คืนเครดิตงานค้าง"),
-    ("🔧", "ตั้งค่าระบบ", "เวอร์ชัน อัตราเครดิต พรอมต์ คำต้องห้าม"),
-    ("📋", "บันทึกระบบ", "เหตุการณ์สำคัญ ติดตามพฤติกรรม"),
-    ("🎁", "โปรโมชั่น", "จัดการแคมเปญ โบนัส ส่วนลด"),
+    ("📊", "แดชบอร์ด", "สถิติวันนี้ รายได้ การเติบโตผู้ใช้", "#00B4D8"),
+    ("👥", "ผู้ใช้งาน", "จัดการผู้ใช้ เครดิต ระงับ/เปิดบัญชี", "#7B2FFF"),
+    ("🧾", "สลิปเติมเงิน", "ตรวจสอบ อนุมัติ/ปฏิเสธสลิป", "#FEB019"),
+    ("⚙️", "ตรวจสอบงาน", "ดูสถานะงาน คืนเครดิตงานค้าง", "#00E396"),
+    ("🔧", "ตั้งค่าระบบ", "เวอร์ชัน อัตราเครดิต พรอมต์ คำต้องห้าม", "#FF00CC"),
+    ("📋", "บันทึกระบบ", "เหตุการณ์สำคัญ ติดตามพฤติกรรม", "#8892A8"),
+    ("🎁", "โปรโมชั่น", "จัดการแคมเปญ โบนัส ส่วนลด", "#FFD700"),
 ]
 
 cols = st.columns(3)
-for i, (icon, title, desc) in enumerate(_pages):
+for i, (icon, title, desc, color) in enumerate(_pages):
     with cols[i % 3]:
-        st.markdown(f"""<div class="nav-card"><h3>{icon} {title}</h3><p>{desc}</p></div>""", unsafe_allow_html=True)
+        st.markdown(_nav_card(icon, title, desc, color), unsafe_allow_html=True)
