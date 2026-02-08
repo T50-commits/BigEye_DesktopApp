@@ -17,8 +17,12 @@ def get_db() -> firestore.firestore.Client:
     """Get Firestore client (singleton). Initializes Firebase app if needed."""
     global _db, _app
     if _db is None:
-        cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
-        if not _app:
+        # Check if default app already exists (Streamlit re-imports modules)
+        try:
+            _app = firebase_admin.get_app()
+        except ValueError:
+            # No default app yet — initialize one
+            cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
             if cred_path and os.path.isfile(cred_path):
                 cred = credentials.Certificate(cred_path)
                 _app = firebase_admin.initialize_app(cred)
