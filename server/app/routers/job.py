@@ -182,10 +182,11 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
             prompt_text = prompts.get("istock", "")
             # Include dictionary for iStock mode (dictionary-strict)
             dictionary = sys_config.get("dictionary", "")
-        elif req.keyword_style and "single" in req.keyword_style.lower():
+        elif req.keyword_style and req.keyword_style.lower().startswith("single"):
+            # "Single Words" → use single-word SEO prompt
             prompt_text = prompts.get("single", "")
         else:
-            # Default: hybrid (Adobe/Shutterstock)
+            # "Hybrid (Phrase & Single)" or default → use hybrid prompt
             prompt_text = prompts.get("hybrid", "")
 
         # Encrypt prompt for delivery
