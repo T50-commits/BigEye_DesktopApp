@@ -365,11 +365,15 @@ class Sidebar(QWidget):
         """Return platform name."""
         return self.combo_platform.currentText()
 
-    def get_platform_rate(self) -> int:
-        """Return credit rate per file for current platform."""
+    def get_platform_rate(self) -> dict:
+        """Return credit rates {photo, video} for current platform from server config."""
         from core.config import PLATFORM_RATES
         name = self.get_platform_name()
-        return PLATFORM_RATES.get(name, 3)
+        rates = PLATFORM_RATES.get(name, {"photo": 3, "video": 3})
+        # Backward compat: if old int format somehow remains
+        if isinstance(rates, int):
+            return {"photo": rates, "video": rates}
+        return rates
 
     def get_keyword_style(self) -> str:
         return self.combo_keyword_style.currentText()

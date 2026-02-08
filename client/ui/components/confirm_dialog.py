@@ -11,14 +11,17 @@ from utils.helpers import format_number
 
 class ConfirmDialog(QDialog):
     def __init__(self, file_count: int, photo_count: int, video_count: int,
-                 model: str, platform: str, cost: int, balance: int, parent=None):
+                 model: str, platform: str, cost: int, balance: int, parent=None,
+                 photo_rate: int = 0, video_rate: int = 0):
         super().__init__(parent)
         self.setWindowTitle("Confirm Processing")
         self.setFixedWidth(400)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
-        self._setup_ui(file_count, photo_count, video_count, model, platform, cost, balance)
+        self._setup_ui(file_count, photo_count, video_count, model, platform,
+                       cost, balance, photo_rate, video_rate)
 
-    def _setup_ui(self, file_count, photo_count, video_count, model, platform, cost, balance):
+    def _setup_ui(self, file_count, photo_count, video_count, model, platform,
+                  cost, balance, photo_rate, video_rate):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
@@ -61,7 +64,10 @@ class ConfirmDialog(QDialog):
 
         cost_lbl = QLabel("Cost")
         cost_lbl.setStyleSheet("color: #8892A8; font-size: 12px;")
-        cost_val = QLabel(f"{format_number(cost)} credits")
+        cost_text = f"{format_number(cost)} credits"
+        if photo_rate and video_rate and photo_rate != video_rate:
+            cost_text += f"  (\U0001F4F7{photo_count}\u00D7{photo_rate} + \U0001F3AC{video_count}\u00D7{video_rate})"
+        cost_val = QLabel(cost_text)
         cost_val.setStyleSheet("color: #FFD700; font-size: 12px; font-weight: 700;")
         cost_val.setAlignment(Qt.AlignmentFlag.AlignRight)
         cost_grid.addWidget(cost_lbl, 0, 0)

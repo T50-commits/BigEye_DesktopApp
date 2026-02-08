@@ -152,10 +152,14 @@ class APIClient:
     # ── Jobs ──
 
     def reserve_job(self, file_count: int, mode: str, keyword_style: str,
-                    model: str, version: str) -> dict:
-        """POST /job/reserve — returns job_token + encrypted config."""
+                    model: str, version: str,
+                    photo_count: int = 0, video_count: int = 0) -> dict:
+        """POST /job/reserve — returns job_token + encrypted config + rates."""
         return self._post("/job/reserve", {
-            "file_count": file_count, "mode": mode,
+            "file_count": file_count,
+            "photo_count": photo_count,
+            "video_count": video_count,
+            "mode": mode,
             "keyword_style": keyword_style, "model": model,
             "version": version,
         })

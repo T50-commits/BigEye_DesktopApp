@@ -500,12 +500,20 @@ class Gallery(QWidget):
                     item.setIcon(QIcon(icon_pixmap))
                     break
 
-    def update_cost_estimate(self, file_count: int, rate: int, platform: str, balance: int):
-        """Update the cost estimate bar."""
-        cost = file_count * rate
+    def update_cost_estimate(self, photo_count: int, video_count: int,
+                             photo_rate: int, video_rate: int,
+                             platform: str, balance: int):
+        """Update the cost estimate bar with separate photo/video rates."""
+        file_count = photo_count + video_count
+        cost = (photo_count * photo_rate) + (video_count * video_rate)
+        # Build rate label
+        if photo_rate == video_rate:
+            rate_label = f"{platform} \u00D7 {photo_rate}"
+        else:
+            rate_label = f"{platform}: \U0001F4F7{photo_rate} \U0001F3AC{video_rate}"
         self.cost_label.setText(
             f"\U0001F4C1 {file_count} files \u00B7 \u2248 {format_number(cost)} credits "
-            f"\u00B7 ({platform} \u00D7 {rate})"
+            f"\u00B7 ({rate_label})"
         )
         if balance >= cost:
             self.cost_status.setText("\u2713 Sufficient")

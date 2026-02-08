@@ -42,10 +42,11 @@ THUMBNAIL_SIZE = 130
 CREDIT_REFRESH_INTERVAL = 5 * 60 * 1000  # 5 minutes
 LOW_CREDIT_THRESHOLD = 50
 
-# Platform rates
+# Platform rates — populated from server on startup via /credit/balance
+# Structure: {platform: {"photo": N, "video": N}}
 PLATFORM_RATES = {
-    "iStock": 3,
-    "Adobe & Shutterstock": 2,
+    "iStock": {"photo": 3, "video": 3},
+    "Adobe & Shutterstock": {"photo": 2, "video": 2},
 }
 
 # AI Models
@@ -106,8 +107,8 @@ TIMEOUT_VIDEO = 600
 TIMEOUT_PHOTO = 60
 MAX_RETRIES = 3
 
-# Credit rates per platform
-CREDIT_RATES = {"iStock": 3, "Adobe": 2, "Shutterstock": 2}
+# Credit rates per platform — populated from server on startup
+CREDIT_RATES = {"iStock": {"photo": 3, "video": 3}, "Adobe": {"photo": 2, "video": 2}, "Shutterstock": {"photo": 2, "video": 2}}
 
 # CSV column definitions (must match platform upload formats exactly)
 ISTOCK_COLS_PHOTO = [

@@ -24,37 +24,45 @@ logger = logging.getLogger("bigeye-api")
 router = APIRouter(prefix="/job", tags=["Job"])
 
 
-def _get_credit_rate(mode: str) -> int:
+def _get_credit_rates(mode: str) -> tuple[int, int]:
     """
-    Get credit rate per file for a platform.
+    Get credit rates (photo_rate, video_rate) for a platform.
     Reads from Firestore system_config/app_settings first,
     falls back to env config if Firestore unavailable.
+    Returns (photo_rate, video_rate).
     """
+    mode_lower = mode.lower()
+
+    # Determine fallback rates from env config
+    if "istock" in mode_lower:
+        fb_photo = settings.ISTOCK_RATE
+        fb_video = settings.ISTOCK_RATE
+        fs_photo_key = "istock_photo"
+        fs_video_key = "istock_video"
+    elif "adobe" in mode_lower or "shutterstock" in mode_lower:
+        fb_photo = settings.ADOBE_RATE
+        fb_video = settings.ADOBE_RATE
+        fs_photo_key = "adobe_photo"
+        fs_video_key = "adobe_video"
+    else:
+        fb_photo = settings.ISTOCK_RATE
+        fb_video = settings.ISTOCK_RATE
+        fs_photo_key = "istock_photo"
+        fs_video_key = "istock_video"
+
     # Try Firestore app_settings (admin-editable)
     try:
         doc = system_config_ref().document("app_settings").get()
         if doc.exists:
             rates = doc.to_dict().get("credit_rates", {})
-            mode_lower = mode.lower()
-            if "istock" in mode_lower:
-                return rates.get("istock_photo", settings.ISTOCK_RATE)
-            elif "adobe" in mode_lower:
-                return rates.get("adobe_photo", settings.ADOBE_RATE)
-            elif "shutterstock" in mode_lower:
-                return rates.get("shutterstock_photo", settings.SHUTTERSTOCK_RATE)
-            return rates.get("istock_photo", settings.ISTOCK_RATE)
+            return (
+                rates.get(fs_photo_key, fb_photo),
+                rates.get(fs_video_key, fb_video),
+            )
     except Exception as e:
         logger.warning(f"Failed to read credit_rates from Firestore: {e}")
 
-    # Fallback to env config
-    mode_lower = mode.lower()
-    if "istock" in mode_lower:
-        return settings.ISTOCK_RATE
-    elif "adobe" in mode_lower:
-        return settings.ADOBE_RATE
-    elif "shutterstock" in mode_lower:
-        return settings.SHUTTERSTOCK_RATE
-    return settings.ISTOCK_RATE
+    return (fb_photo, fb_video)
 
 
 @router.post("/reserve", response_model=ReserveJobResponse)
@@ -70,9 +78,14 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
     if user.get("status") != "active":
         raise HTTPException(status_code=403, detail="Account is not active")
 
-    # Calculate cost
-    rate = _get_credit_rate(req.mode)
-    total_cost = req.file_count * rate
+    # Calculate cost with separate photo/video rates
+    photo_rate, video_rate = _get_credit_rates(req.mode)
+    photos = req.photo_count
+    videos = req.video_count
+    # If client didn't send photo/video breakdown, treat all as photo
+    if photos == 0 and videos == 0:
+        photos = req.file_count
+    total_cost = (photos * photo_rate) + (videos * video_rate)
     current_credits = user.get("credits", 0)
 
     # Generate job token
@@ -118,9 +131,11 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
         "mode": req.mode,
         "keyword_style": req.keyword_style or None,
         "file_count": req.file_count,
-        "photo_count": 0,
-        "video_count": 0,
-        "credit_rate": rate,
+        "photo_count": photos,
+        "video_count": videos,
+        "photo_rate": photo_rate,
+        "video_rate": video_rate,
+        "credit_rate": photo_rate,  # backward compat
         "reserved_credits": total_cost,
         "actual_usage": 0,
         "refund_amount": 0,
@@ -193,9 +208,12 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
         "created_at": now,
     })
 
-    logger.info(f"Job reserved: {job_token} ({req.file_count} files, {total_cost} credits)")
+    logger.info(f"Job reserved: {job_token} ({photos}p+{videos}v, photo_rate={photo_rate}, video_rate={video_rate}, cost={total_cost})")
     return ReserveJobResponse(
         job_token=job_token,
+        reserved_credits=total_cost,
+        photo_rate=photo_rate,
+        video_rate=video_rate,
         config=encrypted_config,
         dictionary=dictionary,
         blacklist=blacklist,
@@ -252,10 +270,25 @@ async def finalize_job(req: FinalizeJobRequest, user: dict = Depends(get_current
         logger.warning(f"Anti-cheat: {user_id} claimed success={req.success} > {file_count}")
         raise HTTPException(status_code=400, detail="Success count exceeds reserved file count")
 
-    # Calculate refund
-    rate = job.get("credit_rate", 3)
+    # Calculate refund using photo/video rates stored in job
+    p_rate = job.get("photo_rate", job.get("credit_rate", 3))
+    v_rate = job.get("video_rate", p_rate)
     reserved = job.get("reserved_credits", 0)
-    actual_usage = req.success * rate  # Only successful files cost credits
+    # actual_usage = successful photos × photo_rate + successful videos × video_rate
+    # Client sends req.photos / req.videos as total counts (success+fail).
+    # We use a weighted approach: proportional success across file types.
+    total_reported = req.success + req.failed
+    if total_reported > 0 and req.photos + req.videos > 0:
+        # Calculate actual usage based on ratio of success files
+        success_ratio = req.success / total_reported if total_reported > 0 else 0
+        successful_photos = round(req.photos * success_ratio)
+        successful_videos = req.success - successful_photos
+        if successful_videos < 0:
+            successful_videos = 0
+            successful_photos = req.success
+        actual_usage = (successful_photos * p_rate) + (successful_videos * v_rate)
+    else:
+        actual_usage = req.success * p_rate
     refund = reserved - actual_usage
     if refund < 0:
         refund = 0

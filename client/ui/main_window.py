@@ -294,15 +294,17 @@ class MainWindow(QMainWindow):
             return
 
         settings = self.sidebar.get_settings()
-        rate = settings["platform_rate"]
+        rates = settings["platform_rate"]  # {"photo": N, "video": N}
+        photo_rate = rates["photo"]
+        video_rate = rates["video"]
         file_count = len(file_list)
-        cost = file_count * rate
         balance = self.credit_bar.get_balance()
 
         img_count, vid_count = count_files(file_list)
+        cost = (img_count * photo_rate) + (vid_count * video_rate)
 
         if balance < cost:
-            dialog = InsufficientDialog(cost, balance, rate, self)
+            dialog = InsufficientDialog(cost, balance, photo_rate, self)
             dialog.topup_requested.connect(self._on_topup)
             dialog.partial_requested.connect(self._on_partial_process)
             dialog.exec()
@@ -311,7 +313,8 @@ class MainWindow(QMainWindow):
         dialog = ConfirmDialog(
             file_count, img_count, vid_count,
             settings["model"], settings["platform"],
-            cost, balance, self
+            cost, balance, self,
+            photo_rate=photo_rate, video_rate=video_rate,
         )
         if dialog.exec() == ConfirmDialog.DialogCode.Accepted:
             self._begin_processing(file_list)
@@ -496,10 +499,16 @@ class MainWindow(QMainWindow):
     def _update_cost_estimate(self):
         file_count = self.gallery.get_file_count()
         if file_count > 0:
-            rate = self.sidebar.get_platform_rate()
+            rates = self.sidebar.get_platform_rate()  # {"photo": N, "video": N}
             platform = self.sidebar.get_platform_name()
             balance = self.credit_bar.get_balance()
-            self.gallery.update_cost_estimate(file_count, rate, platform, balance)
+            file_list = self.gallery.get_file_list()
+            img_count, vid_count = count_files(file_list)
+            self.gallery.update_cost_estimate(
+                img_count, vid_count,
+                rates["photo"], rates["video"],
+                platform, balance,
+            )
 
     def _on_metadata_edited(self, filepath: str, data: dict):
         """Save edited metadata to in-memory results."""
@@ -531,14 +540,26 @@ class MainWindow(QMainWindow):
         logger.info("API key cleared from keyring")
 
     def _on_rates_loaded(self, rates: dict):
-        """Apply server credit rates to sidebar config."""
+        """Apply server credit rates (photo/video) to config."""
         from core import config
         if rates:
-            config.PLATFORM_RATES["iStock"] = rates.get("istock_photo", 3)
-            config.PLATFORM_RATES["Adobe & Shutterstock"] = rates.get("adobe_photo", 2)
-            config.CREDIT_RATES["iStock"] = rates.get("istock_photo", 3)
-            config.CREDIT_RATES["Adobe"] = rates.get("adobe_photo", 2)
-            config.CREDIT_RATES["Shutterstock"] = rates.get("shutterstock_photo", 2)
+            config.PLATFORM_RATES["iStock"] = {
+                "photo": rates.get("istock_photo", 3),
+                "video": rates.get("istock_video", 3),
+            }
+            config.PLATFORM_RATES["Adobe & Shutterstock"] = {
+                "photo": rates.get("adobe_photo", 2),
+                "video": rates.get("adobe_video", 2),
+            }
+            config.CREDIT_RATES["iStock"] = config.PLATFORM_RATES["iStock"]
+            config.CREDIT_RATES["Adobe"] = {
+                "photo": rates.get("adobe_photo", 2),
+                "video": rates.get("adobe_video", 2),
+            }
+            config.CREDIT_RATES["Shutterstock"] = {
+                "photo": rates.get("shutterstock_photo", 2),
+                "video": rates.get("shutterstock_video", 2),
+            }
             logger.info(f"Credit rates updated from server: {config.PLATFORM_RATES}")
             self._update_cost_estimate()
 

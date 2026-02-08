@@ -77,18 +77,26 @@ class JobManager(QObject):
         api_key = settings.get("api_key", "")
         model = settings.get("model", "gemini-2.5-pro")
         platform = settings.get("platform", "iStock")
-        rate = settings.get("platform_rate", 3)
+        rates = settings.get("platform_rate", {"photo": 3, "video": 3})
+        if isinstance(rates, int):
+            rates = {"photo": rates, "video": rates}
         keyword_style = settings.get("keyword_style", "")
+
+        # Count photos and videos
+        from utils.helpers import count_files
+        img_count, vid_count = count_files(files)
 
         try:
             # ── Step 1: Reserve job with backend ──
-            logger.info(f"Reserving job: {len(files)} files, {platform}")
+            logger.info(f"Reserving job: {len(files)} files ({img_count}p+{vid_count}v), {platform}")
             reserve_data = api.reserve_job(
                 file_count=len(files),
                 mode=platform,
                 keyword_style=keyword_style,
                 model=model,
                 version=APP_VERSION,
+                photo_count=img_count,
+                video_count=vid_count,
             )
             self._job_token = reserve_data.get("job_token", "")
             encrypted_config = reserve_data.get("config", "")
@@ -131,8 +139,10 @@ class JobManager(QObject):
             # (done lazily inside _process_file)
 
             # ── Step 8: Create journal ──
+            # Use photo_rate from server response, fallback to config
+            journal_rate = reserve_data.get("photo_rate", rates.get("photo", 3))
             JournalManager.create_journal(
-                self._job_token, len(files), platform, rate,
+                self._job_token, len(files), platform, journal_rate,
             )
 
             # ── Step 9: Start processing via QueueManager ──
@@ -291,7 +301,9 @@ class JobManager(QObject):
         videos = sum(1 for fn in self._results if is_video(fn))
         platform = self._settings.get("platform", "iStock")
         model = self._settings.get("model", "gemini-2.5-pro")
-        rate = self._settings.get("platform_rate", 3)
+        rates = self._settings.get("platform_rate", {"photo": 3, "video": 3})
+        if isinstance(rates, int):
+            rates = {"photo": rates, "video": rates}
 
         # ── Finalize with backend ──
         refunded = 0
@@ -303,7 +315,8 @@ class JobManager(QObject):
             self.credit_updated.emit(new_balance)
         except Exception as e:
             logger.warning(f"Finalize failed: {e}")
-            refunded = failed * rate
+            # Estimate refund locally as fallback
+            refunded = (failed * rates.get("photo", 3))
 
         # ── Export CSV ──
         csv_files = []

@@ -66,7 +66,9 @@ class HistoryResponse(BaseModel):
 
 class ReserveJobRequest(BaseModel):
     file_count: int = Field(gt=0)
-    mode: str  # "iStock" | "Adobe" | "Shutterstock"
+    photo_count: int = 0
+    video_count: int = 0
+    mode: str  # "iStock" | "Adobe & Shutterstock"
     keyword_style: str = ""  # "Hybrid" | "Single Words"
     model: str = "gemini-2.5-pro"
     version: str = ""
@@ -74,6 +76,9 @@ class ReserveJobRequest(BaseModel):
 
 class ReserveJobResponse(BaseModel):
     job_token: str
+    reserved_credits: int = 0
+    photo_rate: int = 0
+    video_rate: int = 0
     config: str = ""  # AES encrypted prompt
     dictionary: str = ""  # keyword dictionary (iStock mode only)
     blacklist: list[str] = []
