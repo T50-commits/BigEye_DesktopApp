@@ -201,6 +201,7 @@ class MainWindow(QMainWindow):
 
         # Sidebar
         self.sidebar.platform_changed.connect(self._on_platform_changed)
+        self.sidebar.keyword_style_changed.connect(self._on_keyword_style_changed)
         self.sidebar.api_key_saved.connect(self._on_save_api_key)
         self.sidebar.api_key_cleared.connect(self._on_clear_api_key)
 
@@ -419,10 +420,6 @@ class MainWindow(QMainWindow):
         )
         dialog.exec()
 
-        # Reset gallery + inspector for next run
-        self.gallery.reset_file_statuses()
-        self.inspector.clear()
-
     def _on_job_failed(self, error_message: str):
         """Handle job failure from JobManager."""
         self._is_processing = False
@@ -502,6 +499,13 @@ class MainWindow(QMainWindow):
 
     def _on_platform_changed(self, text: str):
         self._update_cost_estimate()
+        self._reset_previous_results()
+
+    def _on_keyword_style_changed(self, text: str):
+        self._reset_previous_results()
+
+    def _reset_previous_results(self):
+        """Reset gallery/inspector when user switches platform or keyword style."""
         if not self._is_processing:
             self._results.clear()
             self.inspector.clear()
