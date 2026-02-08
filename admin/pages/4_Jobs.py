@@ -13,6 +13,28 @@ from utils.firestore_client import jobs_ref, users_ref, transactions_ref
 st.header("⚙️ ตรวจสอบงาน")
 
 
+# ── Helpers ──
+
+_email_cache: dict[str, str] = {}
+
+def resolve_email(user_id: str) -> str:
+    """Resolve user_id to email for display. Cached per session."""
+    if not user_id:
+        return "—"
+    if user_id in _email_cache:
+        return _email_cache[user_id]
+    try:
+        doc = users_ref().document(user_id).get()
+        if doc.exists:
+            email = doc.to_dict().get("email", user_id[:12])
+            _email_cache[user_id] = email
+            return email
+    except Exception:
+        pass
+    _email_cache[user_id] = user_id[:12]
+    return user_id[:12]
+
+
 # ── Data loading ──
 
 def load_jobs(status_filter: str = "ALL", limit: int = 100) -> list[dict]:
@@ -128,7 +150,7 @@ for j in jobs:
 
     table_data.append({
         "Token": j.get("id", "")[:8] + "...",
-        "ผู้ใช้": j.get("email", j.get("user_id", "—")[:12]),
+        "ผู้ใช้": resolve_email(j.get("user_id", "")),
         "โหมด": j.get("mode", "—"),
         "ไฟล์": j.get("file_count", 0),
         "สถานะ": j.get("status", "—"),
@@ -178,8 +200,9 @@ if selected_rows:
         st.markdown(f"**เวอร์ชัน:** {client_info.get('app_version', job.get('version', '—'))}")
         st.markdown(f"**โหมด:** {job.get('mode', '—')}")
 
+    job_user_id = job.get('user_id', job.get('uid', ''))
     st.markdown(f"**Job ID:** `{job_id}`")
-    st.markdown(f"**User ID:** `{job.get('user_id', job.get('uid', '—'))}`")
+    st.markdown(f"**ผู้ใช้:** {resolve_email(job_user_id)} (`{job_user_id[:12]}...`)")
 
     created = job.get("created_at", "")
     if hasattr(created, "strftime"):
