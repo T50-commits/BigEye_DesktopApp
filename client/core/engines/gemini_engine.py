@@ -7,6 +7,7 @@ import json
 import time
 import logging
 import os
+import threading
 from enum import Enum
 from typing import Optional
 
@@ -77,6 +78,7 @@ class GeminiEngine:
         self._model = None
         self._cache = None
         self._cache_name = ""
+        self._lock = threading.Lock()  # Serialize genai API calls
 
     # ── Configuration ──
 
@@ -92,18 +94,20 @@ class GeminiEngine:
         self._model = None  # Reset model when name changes
 
     def _get_model(self) -> genai.GenerativeModel:
-        """Get or create the GenerativeModel instance."""
+        """Get or create the GenerativeModel instance (thread-safe)."""
         if self._model is None:
-            kwargs = {
-                "model_name": self._model_name,
-                "generation_config": genai.GenerationConfig(
-                    response_mime_type="application/json",
-                    temperature=0.3,
-                ),
-            }
-            if self._cache:
-                kwargs["cached_content"] = self._cache
-            self._model = genai.GenerativeModel(**kwargs)
+            with self._lock:
+                if self._model is None:
+                    kwargs = {
+                        "model_name": self._model_name,
+                        "generation_config": genai.GenerationConfig(
+                            response_mime_type="application/json",
+                            temperature=0.3,
+                        ),
+                    }
+                    if self._cache:
+                        kwargs["cached_content"] = self._cache
+                    self._model = genai.GenerativeModel(**kwargs)
         return self._model
 
     # ── Context Caching ──
@@ -219,7 +223,8 @@ class GeminiEngine:
     def _upload_video(self, filepath: str):
         """Upload video to Gemini File API and wait for processing."""
         logger.info(f"Uploading video: {os.path.basename(filepath)}")
-        video_file = genai.upload_file(filepath)
+        with self._lock:
+            video_file = genai.upload_file(filepath)
 
         # Wait for video to be processed (ACTIVE state)
         max_wait = 120  # seconds
@@ -265,10 +270,11 @@ class GeminiEngine:
                         temperature=0.3,
                     )
 
-                response = model.generate_content(
-                    contents,
-                    request_options={"timeout": timeout},
-                )
+                with self._lock:
+                    response = model.generate_content(
+                        contents,
+                        request_options={"timeout": timeout},
+                    )
 
                 # Check for blocked response
                 if not response.candidates:

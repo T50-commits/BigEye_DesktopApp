@@ -353,11 +353,14 @@ class MainWindow(QMainWindow):
         settings["folder_path"] = self.gallery.get_folder_path()
         settings["balance"] = self.credit_bar.get_balance()
 
-        # Run on background thread
-        self._job_thread = QThread()
-        self._job_manager.moveToThread(self._job_thread)
-        self._job_thread.started.connect(
-            lambda: self._job_manager.start_job(file_list, settings)
+        # Run on background thread (using threading.Thread instead of QThread+moveToThread
+        # to avoid gRPC/Qt event loop deadlock — gRPC channels interfere with Qt signal delivery
+        # when created on a QThread)
+        import threading
+        self._job_thread = threading.Thread(
+            target=self._job_manager.start_job,
+            args=(file_list, settings),
+            daemon=True,
         )
         self._job_thread.start()
 
@@ -441,8 +444,13 @@ class MainWindow(QMainWindow):
     def _cleanup_job_thread(self):
         """Stop job thread cleanly."""
         if self._job_thread:
-            self._job_thread.quit()
-            self._job_thread.wait(5000)
+            if hasattr(self._job_thread, 'quit'):
+                # QThread cleanup
+                self._job_thread.quit()
+                self._job_thread.wait(5000)
+            elif hasattr(self._job_thread, 'join'):
+                # threading.Thread cleanup
+                self._job_thread.join(timeout=5)
             self._job_thread = None
 
     def _on_stop(self):

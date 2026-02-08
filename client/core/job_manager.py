@@ -335,7 +335,7 @@ class JobManager(QObject):
         JournalManager.delete_journal()
 
         # ── Build summary ──
-        charged = (ok + failed) * rate
+        charged = (ok * rates.get("photo", 3)) + (videos * rates.get("video", 3))
         summary = {
             "successful": ok,
             "failed": failed,
