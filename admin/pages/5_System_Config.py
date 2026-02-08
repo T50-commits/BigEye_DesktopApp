@@ -13,19 +13,27 @@ st.header("🔧 ตั้งค่าระบบ")
 
 # ── Helpers ──
 
-def load_config(doc_id: str) -> dict:
+APP_SETTINGS_DOC = "app_settings"
+
+def load_app_settings() -> dict:
+    """Load the single app_settings document that backend uses."""
     try:
-        doc = system_config_ref().document(doc_id).get()
+        doc = system_config_ref().document(APP_SETTINGS_DOC).get()
         if doc.exists:
             return doc.to_dict()
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลด {doc_id}: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการโหลดค่าระบบ: {e}")
     return {}
 
 
-def save_config(doc_id: str, data: dict):
+def save_app_settings(data: dict):
+    """Merge-update the single app_settings document."""
     data["updated_at"] = datetime.now(timezone.utc)
-    system_config_ref().document(doc_id).set(data, merge=True)
+    system_config_ref().document(APP_SETTINGS_DOC).set(data, merge=True)
+
+
+# Load once
+_settings = load_app_settings()
 
 
 # ═══════════════════════════════════════
@@ -34,38 +42,37 @@ def save_config(doc_id: str, data: dict):
 
 st.subheader("📱 เวอร์ชันแอป")
 
-version_config = load_config("app_version")
-
 with st.form("version_form"):
     col1, col2 = st.columns(2)
     with col1:
         latest_version = st.text_input(
             "เวอร์ชันล่าสุด",
-            value=version_config.get("latest_version", "2.0.0"),
+            value=_settings.get("app_latest_version", "2.0.0"),
         )
         force_update_below = st.text_input(
             "บังคับอัพเดทต่ำกว่า",
-            value=version_config.get("force_update_below", "1.9.0"),
+            value=_settings.get("force_update_below", "1.9.0"),
         )
     with col2:
         download_url = st.text_input(
             "ลิงก์ดาวน์โหลด",
-            value=version_config.get("download_url", ""),
+            value=_settings.get("app_download_url", ""),
         )
         release_notes = st.text_area(
             "บันทึกการอัพเดท",
-            value=version_config.get("release_notes", ""),
+            value=_settings.get("app_update_notes", ""),
             height=80,
         )
 
     if st.form_submit_button("💾 บันทึกเวอร์ชัน"):
-        save_config("app_version", {
-            "latest_version": latest_version,
+        save_app_settings({
+            "app_latest_version": latest_version,
             "force_update_below": force_update_below,
-            "download_url": download_url,
-            "release_notes": release_notes,
+            "app_download_url": download_url,
+            "app_update_notes": release_notes,
         })
         st.success("✅ บันทึกเวอร์ชันแล้ว")
+        st.rerun()
 
 st.divider()
 
@@ -75,7 +82,7 @@ st.divider()
 
 st.subheader("💰 อัตราเครดิต")
 
-rates_config = load_config("credit_rates")
+rates_config = _settings.get("credit_rates", {})
 
 with st.form("rates_form"):
     st.markdown("**iStock**")
@@ -83,13 +90,13 @@ with st.form("rates_form"):
     with col1:
         istock_photo_rate = st.number_input(
             "iStock ภาพ (cr/ไฟล์)",
-            value=rates_config.get("istock_photo_rate", 3),
+            value=rates_config.get("istock_photo", 3),
             min_value=1, step=1,
         )
     with col2:
         istock_video_rate = st.number_input(
             "iStock วิดีโอ (cr/ไฟล์)",
-            value=rates_config.get("istock_video_rate", 5),
+            value=rates_config.get("istock_video", 3),
             min_value=1, step=1,
         )
 
@@ -98,32 +105,37 @@ with st.form("rates_form"):
     with col3:
         adobe_ss_photo_rate = st.number_input(
             "Adobe & SS ภาพ (cr/ไฟล์)",
-            value=rates_config.get("adobe_ss_photo_rate", 2),
+            value=rates_config.get("adobe_photo", 2),
             min_value=1, step=1,
         )
     with col4:
         adobe_ss_video_rate = st.number_input(
             "Adobe & SS วิดีโอ (cr/ไฟล์)",
-            value=rates_config.get("adobe_ss_video_rate", 4),
+            value=rates_config.get("adobe_video", 2),
             min_value=1, step=1,
         )
 
     st.markdown("**อัตราแลกเปลี่ยน**")
     exchange_rate = st.number_input(
         "1 บาท = ? เครดิต",
-        value=rates_config.get("exchange_rate", 4),
+        value=_settings.get("exchange_rate", 4),
         min_value=1, step=1,
     )
 
     if st.form_submit_button("💾 บันทึกอัตราเครดิต"):
-        save_config("credit_rates", {
-            "istock_photo_rate": istock_photo_rate,
-            "istock_video_rate": istock_video_rate,
-            "adobe_ss_photo_rate": adobe_ss_photo_rate,
-            "adobe_ss_video_rate": adobe_ss_video_rate,
+        save_app_settings({
+            "credit_rates": {
+                "istock_photo": istock_photo_rate,
+                "istock_video": istock_video_rate,
+                "adobe_photo": adobe_ss_photo_rate,
+                "adobe_video": adobe_ss_video_rate,
+                "shutterstock_photo": adobe_ss_photo_rate,
+                "shutterstock_video": adobe_ss_video_rate,
+            },
             "exchange_rate": exchange_rate,
         })
         st.success("✅ บันทึกอัตราเครดิตแล้ว")
+        st.rerun()
 
 st.divider()
 
@@ -133,36 +145,35 @@ st.divider()
 
 st.subheader("⚙️ การประมวลผล")
 
-proc_config = load_config("processing")
-
 with st.form("proc_form"):
     col1, col2, col3 = st.columns(3)
     with col1:
         cache_threshold = st.number_input(
             "Context Cache (ไฟล์)",
-            value=proc_config.get("cache_threshold", 20),
+            value=_settings.get("context_cache_threshold", 20),
             min_value=1, step=5,
         )
     with col2:
         max_images = st.number_input(
             "ภาพพร้อมกันสูงสุด",
-            value=proc_config.get("max_concurrent_images", 5),
+            value=_settings.get("max_concurrent_images", 5),
             min_value=1, step=1,
         )
     with col3:
         max_videos = st.number_input(
             "วิดีโอพร้อมกันสูงสุด",
-            value=proc_config.get("max_concurrent_videos", 2),
+            value=_settings.get("max_concurrent_videos", 2),
             min_value=1, step=1,
         )
 
     if st.form_submit_button("💾 บันทึกค่าประมวลผล"):
-        save_config("processing", {
-            "cache_threshold": cache_threshold,
+        save_app_settings({
+            "context_cache_threshold": cache_threshold,
             "max_concurrent_images": max_images,
             "max_concurrent_videos": max_videos,
         })
         st.success("✅ บันทึกค่าประมวลผลแล้ว")
+        st.rerun()
 
 st.divider()
 
@@ -172,29 +183,28 @@ st.divider()
 
 st.subheader("🚧 โหมดปิดปรับปรุง")
 
-maint_config = load_config("maintenance")
-is_maintenance = maint_config.get("enabled", False)
+is_maintenance = _settings.get("maintenance_mode", False)
 
 if is_maintenance:
-    st.error(f"🔴 โหมดปิดปรับปรุง **เปิดอยู่** — ข้อความ: {maint_config.get('message', '')}")
+    st.error(f"🔴 โหมดปิดปรับปรุง **เปิดอยู่** — ข้อความ: {_settings.get('maintenance_message', '')}")
 else:
     st.success("🟢 โหมดปิดปรับปรุง **ปิดอยู่**")
 
 maint_message = st.text_input(
     "ข้อความแจ้งผู้ใช้",
-    value=maint_config.get("message", "ระบบกำลังปรับปรุง กรุณาลองใหม่ภายหลัง"),
+    value=_settings.get("maintenance_message", "ระบบกำลังปรับปรุง กรุณาลองใหม่ภายหลัง"),
 )
 
 col1, col2 = st.columns(2)
 with col1:
     if not is_maintenance:
         if st.button("🔴 เปิดโหมดปิดปรับปรุง", type="primary"):
-            save_config("maintenance", {"enabled": True, "message": maint_message})
+            save_app_settings({"maintenance_mode": True, "maintenance_message": maint_message})
             st.warning("เปิดโหมดปิดปรับปรุงแล้ว")
             st.rerun()
     else:
         if st.button("🟢 ปิดโหมดปิดปรับปรุง", type="primary"):
-            save_config("maintenance", {"enabled": False, "message": maint_message})
+            save_app_settings({"maintenance_mode": False, "maintenance_message": maint_message})
             st.success("ปิดโหมดปิดปรับปรุงแล้ว")
             st.rerun()
 
@@ -206,23 +216,41 @@ st.divider()
 
 st.subheader("📝 พรอมต์")
 
-prompts_config = load_config("prompts")
+prompts_config = _settings.get("prompts", {})
+
+_PROMPT_LABELS = {
+    "istock": "iStock (Dictionary-Strict)",
+    "hybrid": "Hybrid Mode (Adobe/SS)",
+    "single": "Single Words Mode",
+}
 
 if prompts_config:
-    for key, val in prompts_config.items():
-        if key == "updated_at":
-            continue
-        preview = str(val)[:100] + "..." if len(str(val)) > 100 else str(val)
-        st.text_input(f"**{key}**", value=preview, disabled=True, key=f"prompt_{key}")
+    for key in ["istock", "hybrid", "single"]:
+        val = prompts_config.get(key, "")
+        if val:
+            preview = val[:120].replace("\n", " ") + "..." if len(val) > 120 else val
+            label = _PROMPT_LABELS.get(key, key)
+            st.text_input(f"{label}", value=f"✅ {len(val):,} ตัวอักษร", disabled=True, key=f"prompt_{key}")
+    # Show version info
+    ver = _settings.get("prompts_version", "—")
+    st.caption(f"เวอร์ชันพรอมต์: {ver}")
 else:
-    st.info("ยังไม่มีพรอมต์ที่ตั้งค่า")
+    st.info("ยังไม่มีพรอมต์ที่ตั้งค่า — กรุณารัน upload_prompts.py ก่อน")
 
 with st.expander("📤 อัพเดทพรอมต์"):
-    prompt_key = st.selectbox("ประเภทพรอมต์", ["istock", "hybrid", "single", "custom"])
-    prompt_text = st.text_area("ข้อความพรอมต์ (จะถูกเข้ารหัสโดย backend)", height=150)
+    prompt_key = st.selectbox("ประเภทพรอมต์", ["istock", "hybrid", "single"])
+    # Show current prompt content
+    current_prompt = prompts_config.get(prompt_key, "")
+    if current_prompt:
+        with st.container():
+            st.caption(f"พรอมต์ปัจจุบัน ({len(current_prompt):,} ตัวอักษร):")
+            st.text_area("พรอมต์ปัจจุบัน", value=current_prompt[:2000], height=150, disabled=True, key=f"current_{prompt_key}")
+    prompt_text = st.text_area("ข้อความพรอมต์ใหม่ (จะเขียนทับของเดิม)", height=150, key=f"new_{prompt_key}")
     if st.button("อัพโหลดพรอมต์"):
         if prompt_text:
-            save_config("prompts", {prompt_key: prompt_text})
+            updated_prompts = dict(prompts_config)
+            updated_prompts[prompt_key] = prompt_text
+            save_app_settings({"prompts": updated_prompts})
             st.success(f"✅ อัพเดทพรอมต์ '{prompt_key}' แล้ว")
             st.rerun()
         else:
@@ -236,8 +264,7 @@ st.divider()
 
 st.subheader("🚫 คำต้องห้าม (Blacklist)")
 
-blacklist_config = load_config("blacklist")
-terms = blacklist_config.get("terms", [])
+terms = list(_settings.get("blacklist", []))
 
 st.markdown(f"**ปัจจุบัน:** {len(terms)} คำ")
 
@@ -255,7 +282,7 @@ with col1:
             term = new_term.strip().lower()
             if term not in terms:
                 terms.append(term)
-                save_config("blacklist", {"terms": terms})
+                save_app_settings({"blacklist": terms})
                 st.success(f"เพิ่มแล้ว: '{term}'")
                 st.rerun()
             else:
@@ -268,7 +295,7 @@ with col2:
             term = remove_term.strip().lower()
             if term in terms:
                 terms.remove(term)
-                save_config("blacklist", {"terms": terms})
+                save_app_settings({"blacklist": terms})
                 st.success(f"ลบแล้ว: '{term}'")
                 st.rerun()
             else:
