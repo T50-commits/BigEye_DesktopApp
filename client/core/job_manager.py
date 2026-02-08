@@ -106,7 +106,7 @@ class JobManager(QObject):
             if encrypted_config:
                 try:
                     self._prompt_template = decrypt_aes(encrypted_config, AES_KEY_HEX)
-                    logger.info(f"Prompt decrypted: {len(self._prompt_template)} chars")
+                    logger.info("Prompt loaded")
                 except Exception as e:
                     logger.warning(f"Config decrypt failed: {e}")
                     self._prompt_template = ""
@@ -114,7 +114,7 @@ class JobManager(QObject):
             # ── Step 3: Store dictionary + blacklist ──
             self._dictionary = reserve_data.get("dictionary", "")
             if self._dictionary:
-                logger.info(f"Dictionary loaded: {len(self._dictionary.strip().splitlines())} words")
+                logger.info("Dictionary loaded")
 
             blacklist = reserve_data.get("blacklist", [])
             if blacklist:

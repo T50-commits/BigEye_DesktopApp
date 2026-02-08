@@ -78,7 +78,8 @@ class GeminiEngine:
         self._model = None
         self._cache = None
         self._cache_name = ""
-        self._lock = threading.Lock()  # Serialize genai API calls
+        self._model_lock = threading.Lock()      # Protect lazy model creation
+        self._api_sem = threading.Semaphore(3)   # Allow up to 3 concurrent API calls
 
     # ── Configuration ──
 
@@ -96,7 +97,7 @@ class GeminiEngine:
     def _get_model(self) -> genai.GenerativeModel:
         """Get or create the GenerativeModel instance (thread-safe)."""
         if self._model is None:
-            with self._lock:
+            with self._model_lock:
                 if self._model is None:
                     kwargs = {
                         "model_name": self._model_name,
@@ -223,7 +224,7 @@ class GeminiEngine:
     def _upload_video(self, filepath: str):
         """Upload video to Gemini File API and wait for processing."""
         logger.info(f"Uploading video: {os.path.basename(filepath)}")
-        with self._lock:
+        with self._api_sem:
             video_file = genai.upload_file(filepath)
 
         # Wait for video to be processed (ACTIVE state)
@@ -270,7 +271,7 @@ class GeminiEngine:
                         temperature=0.3,
                     )
 
-                with self._lock:
+                with self._api_sem:
                     response = model.generate_content(
                         contents,
                         request_options={"timeout": timeout},
