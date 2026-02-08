@@ -147,7 +147,7 @@ if selected_rows:
         st.markdown(f"**Hardware ID:** `{user.get('hardware_id', '—')}`")
     with col2:
         st.markdown(f"**เครดิต:** {user.get('credits', 0):,}")
-        st.markdown(f"**เติมเงินรวม:** ฿{user.get('total_topup', 0):,}")
+        st.markdown(f"**เติมเงินรวม:** ฿{user.get('total_topup_baht', user.get('total_topup', 0)):,}")
         st.markdown(f"**สถานะ:** {user.get('status', 'active')}")
     with col3:
         created = user.get("created_at", "—")
