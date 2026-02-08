@@ -37,18 +37,19 @@ def load_today_stats():
     except Exception:
         pass
 
-    # Revenue today (from transactions with type topup)
+    # Revenue today (from transactions with type TOPUP)
     revenue = 0
     try:
-        docs = (
+        docs = list(
             transactions_ref()
-            .where("type", "==", "topup")
-            .where("created_at", ">=", today_start)
+            .where("type", "==", "TOPUP")
             .stream()
         )
         for doc in docs:
             d = doc.to_dict()
-            revenue += d.get("amount_thb", d.get("amount", 0))
+            ts = d.get("created_at")
+            if ts and hasattr(ts, "timestamp") and ts >= today_start:
+                revenue += d.get("amount_thb", d.get("amount", 0))
     except Exception:
         pass
 
@@ -143,11 +144,11 @@ stats = load_today_stats()
 
 # Stats cards
 c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("👥 ผู้ใช้งาน", stats["active_users"])
-c2.metric("🆕 ผู้ใช้ใหม่", stats["new_users"])
-c3.metric("💰 รายได้", f"฿{stats['revenue']:,}")
-c4.metric("⚙️ งาน", stats["jobs"])
-c5.metric("❌ ข้อผิดพลาด", stats["errors"])
+c1.metric("👥 ผู้ใช้งาน (24ชม.)", stats["active_users"])
+c2.metric("🆕 สมัครใหม่วันนี้", stats["new_users"])
+c3.metric("💰 รายได้วันนี้", f"฿{stats['revenue']:,}")
+c4.metric("⚙️ งานวันนี้", stats["jobs"])
+c5.metric("❌ งานผิดพลาด", stats["errors"])
 
 st.divider()
 

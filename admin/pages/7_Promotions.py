@@ -86,7 +86,7 @@ if create_new or st.session_state.get("show_promo_form"):
             promo_code = st.text_input("รหัสโปร (ไม่บังคับ)", placeholder="NEWYEAR2027")
         with col2:
             promo_priority = st.number_input("ลำดับความสำคัญ", value=0, step=1)
-            require_code = st.checkbox("ต้องกรอกรหัสโปร")
+            require_code = st.checkbox("ต้องกรอกรหัสโปร", help="⚠️ ถ้าเปิด โปรนี้จะไม่แสดงในแอปอัตโนมัติ ผู้ใช้ต้องกรอกรหัสเองตอนเติมเงิน")
 
         # Type
         st.markdown("**ประเภทโปรโมชั่น**")
@@ -117,7 +117,7 @@ if create_new or st.session_state.get("show_promo_form"):
         if reward_type == "BONUS_CREDITS":
             reward_data["bonus_credits"] = st.number_input("จำนวนเครดิตโบนัส", value=200, step=50)
         elif reward_type == "RATE_OVERRIDE":
-            reward_data["override_rate"] = st.number_input("อัตราใหม่ (1 บาท = ? cr)", value=5, step=1)
+            reward_data["override_rate"] = st.number_input("อัตราใหม่ (1 บาท = ? เครดิต)", value=5, step=1)
         elif reward_type == "PERCENTAGE_BONUS":
             reward_data["bonus_percentage"] = st.number_input("เปอร์เซ็นต์โบนัส (%)", value=10, step=5)
         elif reward_type == "TIERED_BONUS":
@@ -144,7 +144,7 @@ if create_new or st.session_state.get("show_promo_form"):
 
         # Display
         st.markdown("**การแสดงผลในแอป**")
-        banner_text = st.text_input("ข้อความ Banner", placeholder="🎄 โปรพิเศษ! เติม 500+ รับ 2,200 cr!")
+        banner_text = st.text_input("ข้อความ Banner", placeholder="🎄 โปรพิเศษ! เติม 500+ รับ 2,200 เครดิต!")
         banner_color = st.selectbox("สี Banner", ["#FF4560", "#00E396", "#FEB019", "#775DD0"])
         disp_col1, disp_col2 = st.columns(2)
         with disp_col1:
@@ -254,7 +254,7 @@ for promo in promos:
             st.markdown(f"**จำกัดต่อคน:** {cond.get('max_per_user') or 'ไม่จำกัด'} ครั้ง")
         with col3:
             st.metric("ใช้แล้ว", f"{stats.get('total_redemptions', 0)} ครั้ง")
-            st.metric("โบนัสแจกไป", f"{stats.get('total_bonus_credits', 0):,} cr")
+            st.metric("โบนัสแจกไป", f"{stats.get('total_bonus_credits', 0):,} เครดิต")
             st.metric("รายได้", f"฿{stats.get('total_baht_collected', 0):,}")
 
         # Reward details
@@ -275,9 +275,15 @@ for promo in promos:
         if display.get("banner_text"):
             st.info(f"Banner: {display['banner_text']}")
 
+        # Sync info
+        if cond.get("require_code"):
+            st.caption("🔒 โปรนี้ต้องกรอกรหัส — จะไม่แสดง Banner อัตโนมัติในแอป")
+        if cond.get("new_users_only"):
+            st.caption("👤 เฉพาะผู้ใช้ใหม่เท่านั้น")
+
         # Actions
         st.markdown("---")
-        act_cols = st.columns(4)
+        act_cols = st.columns(6)
 
         with act_cols[0]:
             if status in ("DRAFT", "PAUSED"):
@@ -341,6 +347,80 @@ for promo in promos:
                     st.rerun()
                 except Exception as e:
                     st.error(f"ล้มเหลว: {e}")
+
+        with act_cols[4]:
+            if st.button("✏️ แก้ไข", key=f"edit_{pid}"):
+                st.session_state[f"editing_{pid}"] = True
+
+        with act_cols[5]:
+            if st.button("🗑️ ลบ", key=f"del_{pid}"):
+                st.session_state[f"confirm_del_{pid}"] = True
+
+        # ── Delete confirmation ──
+        if st.session_state.get(f"confirm_del_{pid}"):
+            st.warning(f"⚠️ ยืนยันลบโปรโมชั่น **{name}**? การลบไม่สามารถกู้คืนได้")
+            dc1, dc2 = st.columns(2)
+            with dc1:
+                if st.button("🗑️ ยืนยันลบ", key=f"confirm_yes_{pid}", type="primary"):
+                    try:
+                        promotions_ref().document(pid).delete()
+                        st.success(f"ลบโปรโมชั่น '{name}' แล้ว")
+                        st.session_state.pop(f"confirm_del_{pid}", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"ล้มเหลว: {e}")
+            with dc2:
+                if st.button("ยกเลิก", key=f"confirm_no_{pid}"):
+                    st.session_state.pop(f"confirm_del_{pid}", None)
+                    st.rerun()
+
+        # ── Edit form ──
+        if st.session_state.get(f"editing_{pid}"):
+            st.markdown("### ✏️ แก้ไขโปรโมชั่น")
+            with st.form(f"edit_form_{pid}"):
+                e_col1, e_col2 = st.columns(2)
+                with e_col1:
+                    edit_name = st.text_input("ชื่อโปร", value=name, key=f"en_{pid}")
+                    edit_code = st.text_input("รหัสโปร", value=promo.get("code") or "", key=f"ec_{pid}")
+                    edit_priority = st.number_input("ลำดับ", value=promo.get("priority", 0), step=1, key=f"ep_{pid}")
+                with e_col2:
+                    edit_banner = st.text_input("ข้อความ Banner", value=display.get("banner_text", ""), key=f"eb_{pid}")
+                    edit_color = st.selectbox("สี Banner", ["#FF4560", "#00E396", "#FEB019", "#775DD0"],
+                        index=["#FF4560", "#00E396", "#FEB019", "#775DD0"].index(display.get("banner_color", "#FF4560"))
+                        if display.get("banner_color") in ["#FF4560", "#00E396", "#FEB019", "#775DD0"] else 0,
+                        key=f"ebc_{pid}")
+                    edit_min_topup = st.number_input("เติมขั้นต่ำ (บาท)", value=cond.get("min_topup_baht") or 0, step=50, key=f"emt_{pid}")
+
+                if reward.get("bonus_credits"):
+                    edit_bonus = st.number_input("เครดิตโบนัส", value=reward.get("bonus_credits", 0), step=50, key=f"ebn_{pid}")
+                else:
+                    edit_bonus = None
+
+                e_sub = st.form_submit_button("💾 บันทึกการแก้ไข")
+
+            if e_sub:
+                try:
+                    update_data = {
+                        "name": edit_name,
+                        "code": edit_code or None,
+                        "priority": edit_priority,
+                        "display.banner_text": edit_banner,
+                        "display.banner_color": edit_color,
+                        "conditions.min_topup_baht": edit_min_topup if edit_min_topup > 0 else None,
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                    if edit_bonus is not None:
+                        update_data["reward.bonus_credits"] = edit_bonus
+                    promotions_ref().document(pid).update(update_data)
+                    st.success(f"✅ แก้ไข '{edit_name}' แล้ว")
+                    st.session_state.pop(f"editing_{pid}", None)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"ล้มเหลว: {e}")
+
+            if st.button("ยกเลิกแก้ไข", key=f"cancel_edit_{pid}"):
+                st.session_state.pop(f"editing_{pid}", None)
+                st.rerun()
 
         # Redemption log
         with st.expander("📊 ประวัติการใช้โปร"):
