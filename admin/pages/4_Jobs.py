@@ -40,13 +40,13 @@ def load_jobs(status_filter: str = "ALL", limit: int = 100) -> list[dict]:
 
 def force_refund_job(job: dict):
     job_id = job.get("id", "")
-    uid = job.get("uid", "")
-    reserved = job.get("reserved_credits", job.get("file_count", 0) * job.get("rate", 3))
+    uid = job.get("user_id", job.get("uid", ""))
+    reserved = job.get("reserved_credits", job.get("file_count", 0) * job.get("credit_rate", 3))
 
     jobs_ref().document(job_id).update({
         "status": "EXPIRED",
         "expired_at": datetime.now(timezone.utc),
-        "refunded": reserved,
+        "refund_amount": reserved,
         "admin_force_refund": True,
     })
 
@@ -59,8 +59,8 @@ def force_refund_job(job: dict):
         user_doc.update({"credits": new_balance})
 
         transactions_ref().add({
-            "uid": uid,
-            "type": "refund",
+            "user_id": uid,
+            "type": "REFUND",
             "amount": reserved,
             "balance_after": new_balance,
             "job_id": job_id,
@@ -128,7 +128,7 @@ for j in jobs:
 
     table_data.append({
         "Token": j.get("id", "")[:8] + "...",
-        "ผู้ใช้": j.get("email", j.get("uid", "—")[:12]),
+        "ผู้ใช้": j.get("email", j.get("user_id", "—")[:12]),
         "โหมด": j.get("mode", "—"),
         "ไฟล์": j.get("file_count", 0),
         "สถานะ": j.get("status", "—"),
@@ -159,26 +159,27 @@ if selected_rows:
     col1, col2, col3 = st.columns(3)
     with col1:
         reserved = job.get("reserved_credits", 0)
-        used = job.get("used_credits", 0)
-        refunded = job.get("refunded", 0)
+        used = job.get("actual_usage", job.get("used_credits", 0))
+        refunded = job.get("refund_amount", job.get("refunded", 0))
         st.markdown(f"**จองไว้:** {reserved:,} cr")
         st.markdown(f"**ใช้แล้ว:** {used:,} cr")
         st.markdown(f"**คืนแล้ว:** {refunded:,} cr")
 
     with col2:
-        successful = job.get("successful", job.get("ok", 0))
-        failed = job.get("failed", 0)
+        successful = job.get("success_count", job.get("successful", 0))
+        failed = job.get("failed_count", job.get("failed", 0))
         st.markdown(f"**สำเร็จ:** {successful}")
         st.markdown(f"**ล้มเหลว:** {failed}")
         st.markdown(f"**สถานะ:** {job.get('status', '—')}")
 
     with col3:
-        st.markdown(f"**โมเดล:** {job.get('model', '—')}")
-        st.markdown(f"**เวอร์ชัน:** {job.get('version', '—')}")
+        client_info = job.get("client_info", {})
+        st.markdown(f"**โมเดล:** {client_info.get('model_used', job.get('model', '—'))}")
+        st.markdown(f"**เวอร์ชัน:** {client_info.get('app_version', job.get('version', '—'))}")
         st.markdown(f"**โหมด:** {job.get('mode', '—')}")
 
     st.markdown(f"**Job ID:** `{job_id}`")
-    st.markdown(f"**User UID:** `{job.get('uid', '—')}`")
+    st.markdown(f"**User ID:** `{job.get('user_id', job.get('uid', '—'))}`")
 
     created = job.get("created_at", "")
     if hasattr(created, "strftime"):

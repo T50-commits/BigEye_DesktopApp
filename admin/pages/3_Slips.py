@@ -42,8 +42,8 @@ def load_slips(status_filter: str = "ALL", limit: int = 100) -> list[dict]:
 
 
 def approve_slip(slip_id: str, slip: dict, credit_amount: int):
-    uid = slip.get("uid", "")
-    amount_thb = slip.get("amount", 0)
+    uid = slip.get("user_id", slip.get("uid", ""))
+    amount_thb = slip.get("amount", slip.get("amount_detected", 0))
 
     slips_ref().document(slip_id).update({
         "status": "VERIFIED",
@@ -57,15 +57,15 @@ def approve_slip(slip_id: str, slip: dict, credit_amount: int):
         user_data = user_snap.to_dict()
         current = user_data.get("credits", 0)
         new_balance = current + credit_amount
-        total_topup = user_data.get("total_topup", 0) + amount_thb
+        total_topup = user_data.get("total_topup_baht", 0) + amount_thb
         user_doc.update({
             "credits": new_balance,
-            "total_topup": total_topup,
+            "total_topup_baht": total_topup,
         })
 
         transactions_ref().add({
-            "uid": uid,
-            "type": "topup",
+            "user_id": uid,
+            "type": "TOPUP",
             "amount": credit_amount,
             "amount_thb": amount_thb,
             "balance_after": new_balance,
@@ -116,8 +116,8 @@ for s in slips:
         created = created.strftime("%d/%m %H:%M")
     table_data.append({
         "วันที่": created,
-        "ผู้ใช้": s.get("email", s.get("uid", "—")[:12]),
-        "จำนวน": f"{s.get('amount', 0)} บาท",
+        "ผู้ใช้": s.get("email", s.get("user_id", "—")[:12]),
+        "จำนวน": f"{s.get('amount', s.get('amount_detected', 0))} บาท",
         "สถานะ": s.get("status", "—"),
     })
 
@@ -160,8 +160,8 @@ if selected_rows:
             st.info("ไม่มีภาพสลิปแนบ")
 
     with review_right:
-        st.markdown(f"**ผู้ใช้:** {slip.get('email', slip.get('uid', '—'))}")
-        st.markdown(f"**จำนวน:** {slip.get('amount', 0)} บาท")
+        st.markdown(f"**ผู้ใช้:** {slip.get('email', slip.get('user_id', '—'))}")
+        st.markdown(f"**จำนวน:** {slip.get('amount', slip.get('amount_detected', 0))} บาท")
 
         bank_ref = slip.get("bank_ref", slip.get("reference", "—"))
         st.markdown(f"**เลขอ้างอิงธนาคาร:** {bank_ref}")

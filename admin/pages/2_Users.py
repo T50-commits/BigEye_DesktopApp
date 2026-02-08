@@ -32,8 +32,8 @@ def search_users(query: str = "") -> list[dict]:
                 results.append(d)
             if len(results) < 5:
                 name_docs = (
-                    ref.where(filter=FieldFilter("name", ">=", query))
-                    .where(filter=FieldFilter("name", "<=", query + "\uf8ff"))
+                    ref.where(filter=FieldFilter("full_name", ">=", query))
+                    .where(filter=FieldFilter("full_name", "<=", query + "\uf8ff"))
                     .limit(20)
                     .stream()
                 )
@@ -59,7 +59,7 @@ def get_user_jobs(uid: str, limit: int = 20) -> list[dict]:
     try:
         docs = (
             jobs_ref()
-            .where(filter=FieldFilter("uid", "==", uid))
+            .where(filter=FieldFilter("user_id", "==", uid))
             .order_by("created_at", direction="DESCENDING")
             .limit(limit)
             .stream()
@@ -112,7 +112,7 @@ table_data = []
 for u in users:
     table_data.append({
         "อีเมล": u.get("email", "—"),
-        "ชื่อ": u.get("name", "—"),
+        "ชื่อ": u.get("full_name", u.get("name", "—")),
         "เครดิต": u.get("credits", 0),
         "สถานะ": u.get("status", "active"),
         "ใช้งานล่าสุด": format_time_ago(u.get("last_login")),
@@ -142,7 +142,7 @@ if selected_rows:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown(f"**ชื่อ:** {user.get('name', '—')}")
+        st.markdown(f"**ชื่อ:** {user.get('full_name', user.get('name', '—'))}")
         st.markdown(f"**โทรศัพท์:** {user.get('phone', '—')}")
         st.markdown(f"**Hardware ID:** `{user.get('hardware_id', '—')}`")
     with col2:
@@ -180,8 +180,8 @@ if selected_rows:
                 user_doc.update({"credits": new_balance})
 
                 transactions_ref().add({
-                    "uid": uid,
-                    "type": "adjustment",
+                    "user_id": uid,
+                    "type": "ADJUSTMENT",
                     "amount": adj_amount,
                     "balance_after": new_balance,
                     "description": f"แอดมินปรับ: {adj_reason or 'ไม่ระบุเหตุผล'}",
