@@ -25,7 +25,28 @@ router = APIRouter(prefix="/job", tags=["Job"])
 
 
 def _get_credit_rate(mode: str) -> int:
-    """Get credit rate per file for a platform."""
+    """
+    Get credit rate per file for a platform.
+    Reads from Firestore system_config/app_settings first,
+    falls back to env config if Firestore unavailable.
+    """
+    # Try Firestore app_settings (admin-editable)
+    try:
+        doc = system_config_ref().document("app_settings").get()
+        if doc.exists:
+            rates = doc.to_dict().get("credit_rates", {})
+            mode_lower = mode.lower()
+            if "istock" in mode_lower:
+                return rates.get("istock_photo", settings.ISTOCK_RATE)
+            elif "adobe" in mode_lower:
+                return rates.get("adobe_photo", settings.ADOBE_RATE)
+            elif "shutterstock" in mode_lower:
+                return rates.get("shutterstock_photo", settings.SHUTTERSTOCK_RATE)
+            return rates.get("istock_photo", settings.ISTOCK_RATE)
+    except Exception as e:
+        logger.warning(f"Failed to read credit_rates from Firestore: {e}")
+
+    # Fallback to env config
     mode_lower = mode.lower()
     if "istock" in mode_lower:
         return settings.ISTOCK_RATE

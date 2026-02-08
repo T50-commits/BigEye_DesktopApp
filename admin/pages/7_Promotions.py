@@ -7,8 +7,9 @@ import pandas as pd
 from datetime import datetime, timezone
 
 from utils.firestore_client import promotions_ref, promo_redemptions_ref, users_ref
+from utils.theme import inject_css
 
-
+inject_css()
 st.header("🎁 โปรโมชั่น")
 
 

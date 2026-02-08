@@ -8,8 +8,9 @@ from datetime import datetime, timedelta, timezone
 from google.cloud.firestore_v1 import FieldFilter
 
 from utils.firestore_client import audit_logs_ref, users_ref
+from utils.theme import inject_css
 
-
+inject_css()
 st.header("📋 บันทึกระบบ")
 
 

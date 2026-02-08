@@ -8,8 +8,9 @@ from datetime import datetime, timezone
 from google.cloud.firestore_v1 import FieldFilter
 
 from utils.firestore_client import users_ref, transactions_ref, jobs_ref
+from utils.theme import inject_css
 
-
+inject_css()
 st.header("👥 ผู้ใช้งาน")
 
 

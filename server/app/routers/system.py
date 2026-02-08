@@ -188,6 +188,18 @@ async def generate_daily_report():
     return report
 
 
+@router.post("/expire-promotions")
+async def expire_promotions_endpoint():
+    """
+    Auto-expire promotions past end_date.
+    Called by Cloud Scheduler every hour.
+    """
+    from app.services.promo_engine import expire_promotions
+    count = expire_promotions()
+    logger.info(f"Expire promos: {count} expired")
+    return {"expired": count}
+
+
 def _version_lt(v1: str, v2: str) -> bool:
     """Compare version strings. Returns True if v1 < v2."""
     try:

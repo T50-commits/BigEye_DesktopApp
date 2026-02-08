@@ -9,7 +9,9 @@ from utils.firestore_client import (
     users_ref, jobs_ref, slips_ref, transactions_ref, daily_reports_ref,
 )
 from utils.charts import revenue_chart, user_growth_chart
+from utils.theme import inject_css
 
+inject_css()
 st.header("📊 แดชบอร์ด")
 
 # ── Helper: query Firestore with caching ──

@@ -6,8 +6,9 @@ import streamlit as st
 from datetime import datetime, timezone
 
 from utils.firestore_client import system_config_ref
+from utils.theme import inject_css
 
-
+inject_css()
 st.header("🔧 ตั้งค่าระบบ")
 
 

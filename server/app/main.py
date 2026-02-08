@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, credit, job, system
+from app.routers import auth, credit, job, system, admin_promo
 
 # Logging
 logging.basicConfig(
@@ -39,6 +39,7 @@ app.include_router(auth.router, prefix=PREFIX)
 app.include_router(credit.router, prefix=PREFIX)
 app.include_router(job.router, prefix=PREFIX)
 app.include_router(system.router, prefix=PREFIX)
+app.include_router(admin_promo.router, prefix=PREFIX)
 
 
 @app.get("/")

@@ -12,18 +12,45 @@ from app.models import (
     BalanceResponse, TopUpRequest, TopUpResponse,
     HistoryResponse, TransactionItem,
 )
-from app.database import users_ref, transactions_ref, slips_ref, audit_logs_ref
+from app.models.promo import (
+    BalanceWithPromosResponse, TopUpWithPromoRequest, TopUpWithPromoResponse,
+)
+from app.database import users_ref, transactions_ref, slips_ref, audit_logs_ref, system_config_ref
 from app.dependencies import get_current_user
 from app.config import settings
+from app.services.promo_engine import (
+    get_active_promos_for_client, process_topup_with_promo,
+)
 
 logger = logging.getLogger("bigeye-api")
 router = APIRouter(prefix="/credit", tags=["Credit"])
 
 
-@router.get("/balance", response_model=BalanceResponse)
+def _get_exchange_rate() -> int:
+    """Read exchange rate from Firestore, fallback to env config."""
+    try:
+        doc = system_config_ref().document("app_settings").get()
+        if doc.exists:
+            return doc.to_dict().get("exchange_rate", settings.EXCHANGE_RATE)
+    except Exception:
+        pass
+    return settings.EXCHANGE_RATE
+
+
+@router.get("/balance", response_model=BalanceWithPromosResponse)
 async def get_balance(user: dict = Depends(get_current_user)):
-    """Get current credit balance."""
-    return BalanceResponse(credits=user.get("credits", 0))
+    """Get current credit balance with active promotions."""
+    try:
+        active_promos = get_active_promos_for_client()
+    except Exception as e:
+        logger.warning(f"Failed to fetch active promos: {e}")
+        active_promos = []
+
+    return BalanceWithPromosResponse(
+        credits=user.get("credits", 0),
+        exchange_rate=_get_exchange_rate(),
+        active_promos=active_promos,
+    )
 
 
 @router.get("/history", response_model=HistoryResponse)
@@ -62,18 +89,16 @@ async def get_history(
     )
 
 
-@router.post("/topup", response_model=TopUpResponse)
-async def topup(req: TopUpRequest, user: dict = Depends(get_current_user)):
+@router.post("/topup", response_model=TopUpWithPromoResponse)
+async def topup(req: TopUpWithPromoRequest, user: dict = Depends(get_current_user)):
     """
     Submit a payment slip for top-up.
+    Automatically applies best matching promotion.
     In production: verify slip via 3rd party API.
     For now: auto-approve for testing.
     """
     user_id = user["user_id"]
     now = datetime.now(timezone.utc)
-
-    # Calculate credits
-    credits_to_add = req.amount * settings.EXCHANGE_RATE
 
     # Create slip record
     slip_data = {
@@ -81,7 +106,6 @@ async def topup(req: TopUpRequest, user: dict = Depends(get_current_user)):
         "status": "VERIFIED",  # Auto-approve for testing
         "image_url": "",  # Would store in Cloud Storage
         "amount_detected": req.amount,
-        "amount_credited": credits_to_add,
         "bank_ref": None,
         "verification_method": "AUTO_DEV",
         "created_at": now,
@@ -89,43 +113,45 @@ async def topup(req: TopUpRequest, user: dict = Depends(get_current_user)):
     }
     _, slip_ref = slips_ref().add(slip_data)
 
-    # Atomic credit update
-    db = users_ref().document(user_id)
-    new_balance = user.get("credits", 0) + credits_to_add
-    db.update({
-        "credits": firestore.Increment(credits_to_add),
-        "total_topup_baht": firestore.Increment(req.amount),
-        "last_active": now,
-    })
+    # Process top-up with promo engine
+    result = process_topup_with_promo(
+        user_id=user_id,
+        user=user,
+        topup_baht=float(req.amount),
+        slip_id=slip_ref.id,
+        promo_code=req.promo_code,
+    )
 
-    # Create transaction record
-    transactions_ref().add({
-        "user_id": user_id,
-        "type": "TOPUP",
-        "amount": credits_to_add,
-        "balance_after": new_balance,
-        "reference_id": slip_ref.id,
-        "description": f"Top-up {req.amount} THB ({credits_to_add} credits)",
-        "created_at": now,
-        "metadata": {
-            "baht_amount": req.amount,
-            "slip_ref": slip_ref.id,
-        },
+    # Update slip with credited amount
+    slips_ref().document(slip_ref.id).update({
+        "amount_credited": result["total_credits"],
     })
 
     # Audit
     audit_logs_ref().add({
         "event_type": "TOPUP_SUCCESS",
         "user_id": user_id,
-        "details": {"amount_thb": req.amount, "credits": credits_to_add},
+        "details": {
+            "amount_thb": req.amount,
+            "base_credits": result["base_credits"],
+            "bonus_credits": result["bonus_credits"],
+            "total_credits": result["total_credits"],
+            "promo_applied": result["promo_applied"],
+        },
         "severity": "INFO",
         "created_at": now,
     })
 
-    logger.info(f"Top-up: {user_id} +{credits_to_add} credits ({req.amount} THB)")
-    return TopUpResponse(
+    msg = f"Added {result['total_credits']} credits"
+    if result["promo_applied"]:
+        msg += f" (incl. {result['bonus_credits']} bonus from '{result['promo_applied']}')"
+
+    return TopUpWithPromoResponse(
         status="verified",
-        credits_added=credits_to_add,
-        new_balance=new_balance,
-        message=f"Added {credits_to_add} credits",
+        base_credits=result["base_credits"],
+        bonus_credits=result["bonus_credits"],
+        total_credits=result["total_credits"],
+        new_balance=result["new_balance"],
+        promo_applied=result["promo_applied"],
+        message=msg,
     )
