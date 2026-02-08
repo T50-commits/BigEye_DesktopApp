@@ -48,7 +48,9 @@
 | `file_count` | number | |
 | `photo_count` | number | |
 | `video_count` | number | |
-| `credit_rate` | number | |
+| `photo_rate` | number | อัตราเครดิต/รูป |
+| `video_rate` | number | อัตราเครดิต/วิดีโอ |
+| `credit_rate` | number | backward compat (เท่ากับ photo_rate) |
 | `reserved_credits` | number | ❌ ไม่ใช่ `total_cost` |
 | `actual_usage` | number | ❌ ไม่ใช่ `used_credits` |
 | `refund_amount` | number | ❌ ไม่ใช่ `refunded` |
@@ -76,6 +78,9 @@
 | `created_at` | timestamp | |
 | `metadata.baht_amount` | number/null | เฉพาะ TOPUP ❌ ไม่ใช่ `amount_thb` |
 | `metadata.slip_ref` | string/null | |
+| `metadata.base_credits` | number/null | เฉพาะ TOPUP |
+| `metadata.bonus_credits` | number/null | เฉพาะ TOPUP (มีโปร) |
+| `metadata.promo_id` | string/null | เฉพาะ TOPUP (มีโปร) |
 
 ---
 
@@ -108,8 +113,10 @@
 | `prompts.istock` | string | ❌ ไม่ใช่ `prompts.prompt_istock` |
 | `prompts.hybrid` | string | ❌ ไม่ใช่ `prompts.prompt_hybrid` |
 | `prompts.single` | string | ❌ ไม่ใช่ `prompts.prompt_single` |
-| `dictionary_url` | string | |
-| `dictionary_hash` | string | |
+| `dictionary` | string | เนื้อหา dictionary ทั้งหมด ❌ ไม่ใช่ `dictionary_url` |
+| `dictionary_word_count` | number | |
+| `dictionary_version` | string | |
+| `dictionary_updated_at` | timestamp | |
 | `blacklist` | array\<string\> | |
 | `credit_rates.istock_photo` | number | ❌ ไม่ใช่ `iStock_photo` |
 | `credit_rates.istock_video` | number | |
@@ -127,6 +134,9 @@
 | `context_cache_threshold` | number | |
 | `max_concurrent_images` | number | |
 | `max_concurrent_videos` | number | |
+| `prompts_version` | string | |
+| `prompts_updated_at` | timestamp | |
+| `updated_at` | timestamp | |
 
 ---
 
