@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from utils.firestore_client import (
     users_ref, jobs_ref, slips_ref, transactions_ref, daily_reports_ref,
+    system_config_ref,
 )
 from utils.charts import revenue_chart, user_growth_chart
 from utils.theme import inject_css
@@ -39,47 +40,72 @@ def load_today_stats():
     except Exception:
         pass
 
-    # Revenue today (from transactions with type TOPUP)
-    revenue = 0
+    # ── รายรับ (Top-up THB) — เงินจริงที่ลูกค้าเติมเข้ามาวันนี้ ──
+    topup_thb = 0
     try:
-        docs = list(
-            transactions_ref()
-            .where("type", "==", "TOPUP")
-            .stream()
-        )
+        docs = list(slips_ref().where("status", "==", "VERIFIED").stream())
         for doc in docs:
             d = doc.to_dict()
             ts = d.get("created_at")
             if ts and hasattr(ts, "timestamp") and ts >= today_start:
-                revenue += d.get("amount_thb", d.get("amount", 0))
+                topup_thb += d.get("amount_detected", 0)
+    except Exception:
+        pass
+
+    # ── รายได้รับรู้ (Used credits → THB) — เครดิตที่ลูกค้าใช้จริงแปลงกลับเป็นบาท ──
+    # actual_usage = เครดิตที่ใช้จริง, credit_rate = อัตราเครดิต/ไฟล์
+    # เราแปลงกลับเป็นบาทด้วย exchange_rate (1 บาท = N เครดิต)
+    recognized_thb = 0.0
+    exchange_rate = 4
+    try:
+        cfg = system_config_ref().document("app_settings").get()
+        if cfg.exists:
+            exchange_rate = cfg.to_dict().get("exchange_rate", 4)
+    except Exception:
+        pass
+
+    try:
+        docs = list(jobs_ref().where("status", "==", "COMPLETED").stream())
+        for doc in docs:
+            d = doc.to_dict()
+            ts = d.get("created_at")
+            if ts and hasattr(ts, "timestamp") and ts >= today_start:
+                usage = d.get("actual_usage", 0)
+                if usage > 0 and exchange_rate > 0:
+                    recognized_thb += usage / exchange_rate
     except Exception:
         pass
 
     # Jobs today
     jobs_count = 0
     try:
-        docs = jobs_ref().where("created_at", ">=", today_start).stream()
-        jobs_count = sum(1 for _ in docs)
+        docs = list(jobs_ref().stream())
+        for doc in docs:
+            d = doc.to_dict()
+            ts = d.get("created_at")
+            if ts and hasattr(ts, "timestamp") and ts >= today_start:
+                jobs_count += 1
     except Exception:
         pass
 
     # Errors today (failed jobs)
     errors = 0
     try:
-        docs = (
-            jobs_ref()
-            .where("status", "==", "FAILED")
-            .where("created_at", ">=", today_start)
-            .stream()
-        )
-        errors = sum(1 for _ in docs)
+        docs = list(jobs_ref().where("status", "==", "FAILED").stream())
+        for doc in docs:
+            d = doc.to_dict()
+            ts = d.get("created_at")
+            if ts and hasattr(ts, "timestamp") and ts >= today_start:
+                errors += 1
     except Exception:
         pass
 
     return {
         "active_users": active_users,
         "new_users": new_users,
-        "revenue": revenue,
+        "topup_thb": topup_thb,
+        "recognized_thb": round(recognized_thb, 2),
+        "exchange_rate": exchange_rate,
         "jobs": jobs_count,
         "errors": errors,
     }
@@ -171,16 +197,24 @@ def _metric_card(icon: str, label: str, value: str, color: str, sub: str = "") -
     </div>
     """
 
-c1, c2, c3, c4, c5 = st.columns(5)
+# Row 1: Users + Revenue
+c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(_metric_card("👥", "ผู้ใช้งาน", str(stats["active_users"]), "#3b82f6", "ล็อกอินใน 24 ชม."), unsafe_allow_html=True)
 with c2:
     st.markdown(_metric_card("🆕", "สมัครใหม่", str(stats["new_users"]), "#8b5cf6", "วันนี้"), unsafe_allow_html=True)
 with c3:
-    st.markdown(_metric_card("💰", "รายได้", f"฿{stats['revenue']:,}", "#10b981", "วันนี้"), unsafe_allow_html=True)
+    st.markdown(_metric_card("�", "รายรับ (เติมเงิน)", f"฿{stats['topup_thb']:,}", "#10b981", "เงินจริงที่ลูกค้าเติมวันนี้"), unsafe_allow_html=True)
 with c4:
-    st.markdown(_metric_card("⚙️", "งานทั้งหมด", str(stats["jobs"]), "#f59e0b", "วันนี้"), unsafe_allow_html=True)
+    st.markdown(_metric_card("📊", "รายได้รับรู้", f"฿{stats['recognized_thb']:,.2f}", "#0ea5e9", f"เครดิตที่ใช้ ÷ {stats['exchange_rate']} = บาท"), unsafe_allow_html=True)
+
+st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+# Row 2: Jobs
+c5, c6, c7, c8 = st.columns(4)
 with c5:
+    st.markdown(_metric_card("⚙️", "งานทั้งหมด", str(stats["jobs"]), "#f59e0b", "วันนี้"), unsafe_allow_html=True)
+with c6:
     err_color = "#ef4444" if stats["errors"] > 0 else "#22c55e"
     st.markdown(_metric_card("❌", "งานผิดพลาด", str(stats["errors"]), err_color, "วันนี้"), unsafe_allow_html=True)
 
