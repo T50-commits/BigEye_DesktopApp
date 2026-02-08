@@ -36,7 +36,7 @@ class CopyrightGuard:
             for w in sorted_words
         ]
         self._initialized = True
-        logger.info("CopyrightGuard initialized")
+        pass  # initialized silently
 
     def is_blacklisted(self, word: str) -> bool:
         """Check if a single word/phrase is in the blacklist."""

@@ -66,35 +66,37 @@ class KeywordProcessor:
 
     def process_hybrid(self, keywords: list, max_count: int = 45) -> list:
         """
-        Hybrid pipeline: keep phrases + explode into single words → stem dedup → blacklist → trim.
-        Gives priority to phrases, then fills with unique single words.
+        Hybrid pipeline (matches Streamlit finalize_keywords_v5_ai_driven):
+        - Preserve phrases as-is (Title Case)
+        - Stem-dedup single words (keep shortest form)
+        - Order: phrases first, then unique single words
+        - Does NOT explode phrases into single words
         """
         cleaned = self._clean(keywords)
 
-        # Split into phrases (multi-word) and singles
-        phrases = [kw for kw in cleaned if " " in kw]
-        singles = [kw for kw in cleaned if " " not in kw]
+        # Separate phrases and singles
+        phrases = []
+        singles = []
+        seen_phrases = set()
 
-        # Explode phrases into additional single words
-        exploded = []
-        for phrase in phrases:
-            for word in phrase.split():
-                w = word.strip().lower()
-                if len(w) >= 2:
-                    exploded.append(w)
-
-        # Combine: original singles + exploded
-        all_singles = singles + exploded
+        for kw in cleaned:
+            kw_lower = kw.lower()
+            if " " in kw:
+                if kw_lower not in seen_phrases:
+                    seen_phrases.add(kw_lower)
+                    phrases.append(kw.title())
+            else:
+                singles.append(kw)
 
         # Stem-dedup singles (keep shortest surface form per stem)
-        unique_singles = self._stem_dedup(all_singles)
+        unique_singles = self._stem_dedup(singles)
 
-        # Combine: phrases first, then fill with unique singles
+        # Combine: phrases first, then fill with unique single words
         result = list(phrases)
         seen_lower = {p.lower() for p in result}
         for s in unique_singles:
             if s.lower() not in seen_lower:
-                result.append(s)
+                result.append(s.title())
                 seen_lower.add(s.lower())
 
         filtered = self._filter_blacklist(result)
