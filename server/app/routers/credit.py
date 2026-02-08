@@ -37,7 +37,7 @@ def _load_app_settings() -> dict:
     return {}
 
 
-@router.get("/balance", response_model=BalanceWithPromosResponse)
+@router.get("/balance")
 async def get_balance(user: dict = Depends(get_current_user)):
     """Get current credit balance with active promotions and credit rates."""
     try:
@@ -49,22 +49,21 @@ async def get_balance(user: dict = Depends(get_current_user)):
     cfg = _load_app_settings()
     rates = cfg.get("credit_rates", {})
 
-    from app.models.promo import CreditRatesInfo
-    credit_rates = CreditRatesInfo(
-        istock_photo=rates.get("istock_photo", settings.ISTOCK_RATE),
-        istock_video=rates.get("istock_video", settings.ISTOCK_RATE),
-        adobe_photo=rates.get("adobe_photo", settings.ADOBE_RATE),
-        adobe_video=rates.get("adobe_video", settings.ADOBE_RATE),
-        shutterstock_photo=rates.get("shutterstock_photo", settings.SHUTTERSTOCK_RATE),
-        shutterstock_video=rates.get("shutterstock_video", settings.SHUTTERSTOCK_RATE),
-    )
+    credit_rates = {
+        "istock_photo": rates.get("istock_photo", settings.ISTOCK_RATE),
+        "istock_video": rates.get("istock_video", settings.ISTOCK_RATE),
+        "adobe_photo": rates.get("adobe_photo", settings.ADOBE_RATE),
+        "adobe_video": rates.get("adobe_video", settings.ADOBE_RATE),
+        "shutterstock_photo": rates.get("shutterstock_photo", settings.SHUTTERSTOCK_RATE),
+        "shutterstock_video": rates.get("shutterstock_video", settings.SHUTTERSTOCK_RATE),
+    }
 
-    return BalanceWithPromosResponse(
-        credits=user.get("credits", 0),
-        exchange_rate=cfg.get("exchange_rate", settings.EXCHANGE_RATE),
-        credit_rates=credit_rates,
-        active_promos=active_promos,
-    )
+    return {
+        "credits": user.get("credits", 0),
+        "exchange_rate": cfg.get("exchange_rate", settings.EXCHANGE_RATE),
+        "credit_rates": credit_rates,
+        "active_promos": active_promos,
+    }
 
 
 @router.get("/history", response_model=HistoryResponse)
