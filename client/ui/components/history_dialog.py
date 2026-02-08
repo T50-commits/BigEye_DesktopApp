@@ -52,7 +52,11 @@ class HistoryDialog(QDialog):
             date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row, 0, date_item)
 
-            desc_item = QTableWidgetItem(tx.get("description", ""))
+            desc = tx.get("description", "")
+            # Add bonus tag for promo top-ups
+            if "bonus" in desc.lower():
+                desc = "\U0001F381 " + desc
+            desc_item = QTableWidgetItem(desc)
             self.table.setItem(row, 1, desc_item)
 
             amount = tx.get("amount", 0)

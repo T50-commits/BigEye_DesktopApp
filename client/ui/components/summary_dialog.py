@@ -52,9 +52,18 @@ class SummaryDialog(QDialog):
         sep.setStyleSheet("background: #1A3A6B;")
         cl.addWidget(sep)
 
-        bal_row = QLabel(f"Balance        {format_number(balance)} credits")
-        bal_row.setStyleSheet("color: #FFD700; font-size: 13px; font-weight: 700;")
-        cl.addWidget(bal_row)
+        from PySide6.QtWidgets import QHBoxLayout
+        bal_layout = QHBoxLayout()
+        bal_layout.setContentsMargins(0, 0, 0, 0)
+        bal_lbl = QLabel("Balance:")
+        bal_lbl.setStyleSheet("color: #FFD700; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+        bal_val = QLabel(f"{format_number(balance)} credits")
+        bal_val.setStyleSheet("color: #FFD700; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+        bal_val.setAlignment(Qt.AlignmentFlag.AlignRight)
+        bal_layout.addWidget(bal_lbl)
+        bal_layout.addStretch()
+        bal_layout.addWidget(bal_val)
+        cl.addLayout(bal_layout)
         layout.addWidget(credits)
 
         # CSV files card
@@ -95,23 +104,24 @@ class SummaryDialog(QDialog):
     def _card(self, title_text):
         card = QWidget()
         card.setStyleSheet(
-            "background: #16213E; border: 1px solid #1A3A6B; "
-            "border-radius: 10px; padding: 14px;"
+            "QWidget { background: #16213E; border: 1px solid #1A3A6B; border-radius: 10px; }"
         )
         vl = QVBoxLayout(card)
-        vl.setSpacing(6)
+        vl.setContentsMargins(14, 14, 14, 14)
+        vl.setSpacing(8)
         t = QLabel(title_text)
-        t.setStyleSheet("color: #8892A8; font-size: 10px; font-weight: 600; letter-spacing: 1.2px;")
+        t.setStyleSheet("color: #8892A8; font-size: 10px; font-weight: 600; letter-spacing: 1.2px; border: none; background: transparent;")
         vl.addWidget(t)
         return card
 
     def _add_row(self, layout, label, value, color):
         from PySide6.QtWidgets import QHBoxLayout
         row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
         lbl = QLabel(label)
-        lbl.setStyleSheet("color: #8892A8; font-size: 12px;")
+        lbl.setStyleSheet("color: #8892A8; font-size: 13px; border: none; background: transparent;")
         val = QLabel(value)
-        val.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: 600;")
+        val.setStyleSheet(f"color: {color}; font-size: 13px; font-weight: 600; border: none; background: transparent;")
         val.setAlignment(Qt.AlignmentFlag.AlignRight)
         row.addWidget(lbl)
         row.addStretch()

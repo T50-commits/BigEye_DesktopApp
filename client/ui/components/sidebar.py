@@ -17,6 +17,80 @@ from core.config import (
     SLIDER_CONFIGS, DEBUG_LOG_PATH
 )
 
+COMBO_BOX_STYLE = """
+    QComboBox {
+        background: #16213E;
+        border: 1px solid #1A3A6B;
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: #E8E8E8;
+        font-size: 13px;
+    }
+    QComboBox:hover {
+        border-color: #264773;
+    }
+    QComboBox:focus {
+        border-color: #FF00CC;
+    }
+    QComboBox::drop-down {
+        border: none;
+        width: 30px;
+    }
+    QComboBox::down-arrow {
+        image: none;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid #8892A8;
+        margin-right: 10px;
+    }
+"""
+
+COMBO_POPUP_STYLE = """
+    QFrame {
+        background: #16213E;
+        border: 1px solid #1A3A6B;
+        border-radius: 6px;
+    }
+"""
+
+COMBO_VIEW_STYLE = """
+    QListView {
+        background: #16213E;
+        border: none;
+        padding: 4px;
+        outline: none;
+        selection-background-color: #0F3460;
+        selection-color: #FF00CC;
+    }
+    QListView::item {
+        background: transparent;
+        color: #8892A8;
+        padding: 8px 12px;
+        min-height: 20px;
+    }
+    QListView::item:hover {
+        background: #0F3460;
+        color: #FF00CC;
+    }
+    QListView::item:selected {
+        background: #0F3460;
+        color: #FF00CC;
+    }
+"""
+
+
+def style_combo(combo: QComboBox):
+    """Style a QComboBox including its popup (which is a separate top-level window)."""
+    combo.setStyleSheet(COMBO_BOX_STYLE)
+    # The popup view is a QListView inside a QFrame that is a TOP-LEVEL window,
+    # NOT a child of QComboBox — so CSS descendant selectors don't work.
+    # We must style the view and its parent frame directly.
+    view = combo.view()
+    view.setStyleSheet(COMBO_VIEW_STYLE)
+    popup_frame = view.parentWidget()
+    if popup_frame:
+        popup_frame.setStyleSheet(COMBO_POPUP_STYLE)
+
 
 class SectionDivider(QWidget):
     """Horizontal line — SECTION TITLE — horizontal line."""
@@ -178,6 +252,7 @@ class Sidebar(QWidget):
         self.combo_model = QComboBox()
         self.combo_model.addItems(AI_MODELS)
         self.combo_model.setMinimumHeight(38)
+        style_combo(self.combo_model)
         self.combo_model.currentTextChanged.connect(self.model_changed.emit)
         self.layout_main.addWidget(self.combo_model)
 
@@ -189,6 +264,7 @@ class Sidebar(QWidget):
         self.combo_platform = QComboBox()
         self.combo_platform.addItems(PLATFORMS)
         self.combo_platform.setMinimumHeight(38)
+        style_combo(self.combo_platform)
         self.combo_platform.currentTextChanged.connect(self._on_platform_changed)
         self.layout_main.addWidget(self.combo_platform)
 
@@ -200,6 +276,7 @@ class Sidebar(QWidget):
         self.combo_keyword_style = QComboBox()
         self.combo_keyword_style.addItems(KEYWORD_STYLES)
         self.combo_keyword_style.setMinimumHeight(38)
+        style_combo(self.combo_keyword_style)
         self.combo_keyword_style.currentTextChanged.connect(
             self.keyword_style_changed.emit
         )

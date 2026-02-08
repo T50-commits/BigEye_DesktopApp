@@ -19,7 +19,7 @@ from core.config import (
 )
 from core.auth_manager import AuthManager
 from core.api_client import api, APIError, NetworkError, MaintenanceError, UpdateRequiredError
-from core.engines.gemini_engine import GeminiEngine
+from core.job_manager import JobManager
 from core.managers.journal_manager import JournalManager
 from utils.helpers import count_files, format_number
 from utils.security import get_hardware_id, save_to_keyring, load_from_keyring, delete_from_keyring
@@ -43,6 +43,8 @@ logger = logging.getLogger("bigeye")
 class StartupWorker(QObject):
     """Runs startup tasks in background: update check, recovery, balance."""
     balance_loaded = Signal(int)
+    promos_loaded = Signal(list)
+    rates_loaded = Signal(dict)
     update_available = Signal(dict)
     recovery_found = Signal(dict)
     maintenance = Signal(str)
@@ -80,10 +82,12 @@ class StartupWorker(QObject):
         except Exception as e:
             logger.debug(f"Cache cleanup skipped: {e}")
 
-        # 4. Load balance
+        # 4. Load balance + promos + credit rates
         try:
-            balance = api.get_balance()
-            self.balance_loaded.emit(balance)
+            data = api.get_balance_with_promos()
+            self.balance_loaded.emit(data.get("credits", 0))
+            self.promos_loaded.emit(data.get("active_promos", []))
+            self.rates_loaded.emit(data.get("credit_rates", {}))
         except Exception as e:
             logger.debug(f"Balance load skipped: {e}")
 
@@ -105,6 +109,8 @@ class MainWindow(QMainWindow):
         self._is_processing = False
         self._startup_thread = None
         self._startup_worker = None
+        self._job_manager = JobManager()
+        self._job_thread = None
 
         self._setup_ui()
         self._setup_shortcuts()
@@ -227,6 +233,8 @@ class MainWindow(QMainWindow):
 
         self._startup_thread.started.connect(self._startup_worker.run)
         self._startup_worker.balance_loaded.connect(self.credit_bar.set_balance)
+        self._startup_worker.promos_loaded.connect(self.credit_bar.set_promos)
+        self._startup_worker.rates_loaded.connect(self._on_rates_loaded)
         self._startup_worker.update_available.connect(self._on_update_available)
         self._startup_worker.recovery_found.connect(self._on_recovery_found)
         self._startup_worker.maintenance.connect(self._on_maintenance)
@@ -314,79 +322,81 @@ class MainWindow(QMainWindow):
         self._begin_processing(file_list)
 
     def _begin_processing(self, file_list: list):
-        """Begin the actual processing loop."""
+        """Begin processing via JobManager on a background thread."""
         self._is_processing = True
         self._set_processing_state(True)
-        self.status_bar.showMessage(f"Processing {len(file_list)} files...")
-
-        # TODO: Implement actual processing via QThread
-        # For now, simulate with a timer for UI testing
-        self._process_queue = list(file_list)
-        self._process_index = 0
+        self.inspector.enable_export(False)
         self._process_total = len(file_list)
-        self._process_timer = QTimer(self)
-        self._process_timer.timeout.connect(self._simulate_process_step)
-        self._process_timer.start(500)
 
-    def _simulate_process_step(self):
-        """Simulate processing one file at a time for UI demo."""
+        # Show immediate feedback: indeterminate progress + "Preparing..."
+        self.gallery.progress_bar.setMaximum(0)  # indeterminate animation
+        self.gallery.progress_text.setText("Preparing... Reserving credits")
+        self.gallery.progress_percent.setText("")
+        self.status_bar.showMessage(f"Reserving {len(file_list)} files...")
+
+        # Fresh JobManager each run to avoid dead-thread affinity issues
+        self._job_manager = JobManager()
+
+        # Connect JobManager signals to UI
+        self._job_manager.file_completed.connect(self._on_file_completed)
+        self._job_manager.progress_updated.connect(self._on_progress_updated)
+        self._job_manager.job_completed.connect(self._on_job_completed)
+        self._job_manager.job_failed.connect(self._on_job_failed)
+        self._job_manager.credit_updated.connect(self.credit_bar.set_balance)
+
+        # Build settings dict for JobManager
+        settings = self.sidebar.get_settings()
+        settings["api_key"] = self.sidebar.get_api_key()
+        settings["folder_path"] = self.gallery.get_folder_path()
+        settings["balance"] = self.credit_bar.get_balance()
+
+        # Run on background thread
+        self._job_thread = QThread()
+        self._job_manager.moveToThread(self._job_thread)
+        self._job_thread.started.connect(
+            lambda: self._job_manager.start_job(file_list, settings)
+        )
+        self._job_thread.start()
+
+    def _on_file_completed(self, filepath: str, result: dict):
+        """Handle per-file completion from JobManager."""
         import os
-        import random
-
-        if self._process_index >= self._process_total or not self._is_processing:
-            self._process_timer.stop()
-            self._finish_processing()
-            return
-
-        filepath = self._process_queue[self._process_index]
         filename = os.path.basename(filepath)
+        self._results[filename] = result
 
-        # Mark as processing
-        self.gallery.update_file_status(filepath, "processing")
-        self.gallery.update_progress(self._process_index, self._process_total)
-
-        # Simulate result (90% success)
-        if random.random() < 0.9:
-            self._results[filename] = {
-                "title": f"Stock photo of {filename.split('.')[0]}",
-                "description": f"Professional stock image showing {filename.split('.')[0]} in high quality.",
-                "keywords": ["stock", "photo", "professional", "high quality", "image"],
-                "category": "Miscellaneous",
-                "token_input": random.randint(800, 2000),
-                "token_output": random.randint(200, 600),
-                "processing_time": random.uniform(1.5, 5.0),
-                "status": "success",
-            }
+        if result.get("status") == "success":
             self.gallery.update_file_status(filepath, "completed")
         else:
-            self._results[filename] = {
-                "error": "[RATE_LIMIT] Too many requests",
-                "error_type": "RATE_LIMIT",
-                "status": "error",
-            }
             self.gallery.update_file_status(filepath, "error")
-
-        self._process_index += 1
-        self.gallery.update_progress(self._process_index, self._process_total)
 
         # Update inspector if this file is selected
         if hasattr(self, '_selected_file') and self._selected_file == filepath:
             self.inspector.show_file(filepath)
 
-    def _finish_processing(self):
-        """Finish processing and show summary."""
+    def _on_progress_updated(self, current: int, total: int, filename: str):
+        """Handle progress updates from JobManager."""
+        # Switch from indeterminate to determinate on first progress update
+        if self.gallery.progress_bar.maximum() == 0:
+            self.gallery.progress_bar.setMaximum(100)
+            self.status_bar.showMessage(f"Processing {total} files...")
+        self.gallery.update_progress(current, total)
+
+    def _on_job_completed(self, summary: dict):
+        """Handle job completion from JobManager (finalize already done)."""
         self._is_processing = False
         self._set_processing_state(False)
+        self.gallery.reset_progress()
+        self._disconnect_job_signals()
+        self._cleanup_job_thread()
 
-        successful = sum(1 for r in self._results.values() if r.get("status") == "success")
-        failed = sum(1 for r in self._results.values() if r.get("status") == "error")
-        img_count, vid_count = count_files(self.gallery.get_file_list())
-
-        settings = self.sidebar.get_settings()
-        rate = settings["platform_rate"]
-        charged = (successful + failed) * rate
-        refunded = failed * rate
-        balance = self.credit_bar.get_balance() - charged + refunded
+        successful = summary.get("successful", 0)
+        failed = summary.get("failed", 0)
+        img_count = summary.get("photo_count", 0)
+        vid_count = summary.get("video_count", 0)
+        charged = summary.get("charged", 0)
+        refunded = summary.get("refunded", 0)
+        balance = summary.get("balance", 0)
+        csv_files = summary.get("csv_files", [])
 
         self.credit_bar.set_balance(balance)
         self.gallery.update_progress(self._process_total, self._process_total)
@@ -394,11 +404,43 @@ class MainWindow(QMainWindow):
             f"Complete — {successful} successful, {failed} failed"
         )
 
+        # Enable Re-export button after auto-save
+        self.inspector.enable_export(True)
+
         dialog = SummaryDialog(
             successful, failed, img_count, vid_count,
-            charged, refunded, balance, [], self
+            charged, refunded, balance, csv_files, self
         )
         dialog.exec()
+
+    def _on_job_failed(self, error_message: str):
+        """Handle job failure from JobManager."""
+        self._is_processing = False
+        self._set_processing_state(False)
+        self.gallery.reset_progress()
+        self._disconnect_job_signals()
+        self._cleanup_job_thread()
+
+        QMessageBox.critical(self, "Processing Failed", error_message)
+        self.status_bar.showMessage("Processing failed")
+
+    def _disconnect_job_signals(self):
+        """Safely disconnect JobManager signals."""
+        try:
+            self._job_manager.file_completed.disconnect(self._on_file_completed)
+            self._job_manager.progress_updated.disconnect(self._on_progress_updated)
+            self._job_manager.job_completed.disconnect(self._on_job_completed)
+            self._job_manager.job_failed.disconnect(self._on_job_failed)
+            self._job_manager.credit_updated.disconnect(self.credit_bar.set_balance)
+        except RuntimeError:
+            pass
+
+    def _cleanup_job_thread(self):
+        """Stop job thread cleanly."""
+        if self._job_thread:
+            self._job_thread.quit()
+            self._job_thread.wait(5000)
+            self._job_thread = None
 
     def _on_stop(self):
         """Stop processing with confirmation."""
@@ -410,7 +452,13 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
+            self._job_manager.stop_job()
             self._is_processing = False
+            self._set_processing_state(False)
+            self.gallery.reset_progress()
+            self._disconnect_job_signals()
+            self._cleanup_job_thread()
+            self.status_bar.showMessage("Processing stopped")
 
     def _on_escape(self):
         if self._is_processing:
@@ -431,6 +479,7 @@ class MainWindow(QMainWindow):
         """Update cost estimate when folder changes."""
         self._results.clear()
         self.inspector.clear()
+        self.inspector.enable_export(False)
         self._update_cost_estimate()
         self.status_bar.showMessage(
             f"Loaded {len(file_list)} files from {folder_path}"
@@ -438,6 +487,11 @@ class MainWindow(QMainWindow):
 
     def _on_platform_changed(self, text: str):
         self._update_cost_estimate()
+        if not self._is_processing:
+            self._results.clear()
+            self.inspector.clear()
+            self.gallery.reset_progress()
+            self.gallery.reset_file_statuses()
 
     def _update_cost_estimate(self):
         file_count = self.gallery.get_file_count()
@@ -476,11 +530,25 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("API key cleared")
         logger.info("API key cleared from keyring")
 
+    def _on_rates_loaded(self, rates: dict):
+        """Apply server credit rates to sidebar config."""
+        from core import config
+        if rates:
+            config.PLATFORM_RATES["iStock"] = rates.get("istock_photo", 3)
+            config.PLATFORM_RATES["Adobe & Shutterstock"] = rates.get("adobe_photo", 2)
+            config.CREDIT_RATES["iStock"] = rates.get("istock_photo", 3)
+            config.CREDIT_RATES["Adobe"] = rates.get("adobe_photo", 2)
+            config.CREDIT_RATES["Shutterstock"] = rates.get("shutterstock_photo", 2)
+            logger.info(f"Credit rates updated from server: {config.PLATFORM_RATES}")
+            self._update_cost_estimate()
+
     def _on_refresh_balance(self):
-        """Refresh credit balance from server."""
+        """Refresh credit balance, promos, and rates from server."""
         try:
-            balance = api.get_balance()
-            self.credit_bar.set_balance(balance)
+            data = api.get_balance_with_promos()
+            self.credit_bar.set_balance(data.get("credits", 0))
+            self.credit_bar.set_promos(data.get("active_promos", []))
+            self._on_rates_loaded(data.get("credit_rates", {}))
             self._update_cost_estimate()
             self.status_bar.showMessage("Balance refreshed")
         except NetworkError:
@@ -489,7 +557,8 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(f"Error: {e}")
 
     def _on_topup(self):
-        dialog = TopUpDialog(self)
+        promos = self.credit_bar.get_active_promos()
+        dialog = TopUpDialog(self, promos=promos)
         dialog.exec()
 
     def _on_history(self):

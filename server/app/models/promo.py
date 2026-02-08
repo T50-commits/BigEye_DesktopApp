@@ -143,9 +143,19 @@ class ActivePromoInfo(BaseModel):
     ends_at: Optional[str] = None
 
 
+class CreditRatesInfo(BaseModel):
+    istock_photo: int = 3
+    istock_video: int = 3
+    adobe_photo: int = 2
+    adobe_video: int = 2
+    shutterstock_photo: int = 2
+    shutterstock_video: int = 2
+
+
 class BalanceWithPromosResponse(BaseModel):
     credits: int
     exchange_rate: int = 4
+    credit_rates: CreditRatesInfo = CreditRatesInfo()
     active_promos: list[ActivePromoInfo] = []
 
 

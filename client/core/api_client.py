@@ -128,6 +128,16 @@ class APIClient:
         data = self._get("/credit/balance")
         return data.get("credits", data.get("balance", 0))
 
+    def get_balance_with_promos(self) -> dict:
+        """GET /credit/balance — returns full response with credits + active_promos + credit_rates."""
+        data = self._get("/credit/balance")
+        return {
+            "credits": data.get("credits", 0),
+            "exchange_rate": data.get("exchange_rate", 4),
+            "credit_rates": data.get("credit_rates", {}),
+            "active_promos": data.get("active_promos", []),
+        }
+
     def get_history(self, limit: int = 50) -> list:
         """GET /credit/history — returns list of transactions."""
         data = self._get("/credit/history", params={"limit": limit})

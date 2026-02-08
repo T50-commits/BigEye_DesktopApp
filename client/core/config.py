@@ -80,7 +80,7 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 ALL_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 # AES key for decrypting server config (placeholder — set from server)
-AES_KEY_HEX = "0000000000000000000000000000000000000000000000000000000000000000"
+AES_KEY_HEX = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 # Deep Navy Theme (v3)
 THEME = {

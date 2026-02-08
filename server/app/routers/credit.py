@@ -26,29 +26,43 @@ logger = logging.getLogger("bigeye-api")
 router = APIRouter(prefix="/credit", tags=["Credit"])
 
 
-def _get_exchange_rate() -> int:
-    """Read exchange rate from Firestore, fallback to env config."""
+def _load_app_settings() -> dict:
+    """Read app_settings from Firestore once per call."""
     try:
         doc = system_config_ref().document("app_settings").get()
         if doc.exists:
-            return doc.to_dict().get("exchange_rate", settings.EXCHANGE_RATE)
+            return doc.to_dict()
     except Exception:
         pass
-    return settings.EXCHANGE_RATE
+    return {}
 
 
 @router.get("/balance", response_model=BalanceWithPromosResponse)
 async def get_balance(user: dict = Depends(get_current_user)):
-    """Get current credit balance with active promotions."""
+    """Get current credit balance with active promotions and credit rates."""
     try:
         active_promos = get_active_promos_for_client()
     except Exception as e:
         logger.warning(f"Failed to fetch active promos: {e}")
         active_promos = []
 
+    cfg = _load_app_settings()
+    rates = cfg.get("credit_rates", {})
+
+    from app.models.promo import CreditRatesInfo
+    credit_rates = CreditRatesInfo(
+        istock_photo=rates.get("istock_photo", settings.ISTOCK_RATE),
+        istock_video=rates.get("istock_video", settings.ISTOCK_RATE),
+        adobe_photo=rates.get("adobe_photo", settings.ADOBE_RATE),
+        adobe_video=rates.get("adobe_video", settings.ADOBE_RATE),
+        shutterstock_photo=rates.get("shutterstock_photo", settings.SHUTTERSTOCK_RATE),
+        shutterstock_video=rates.get("shutterstock_video", settings.SHUTTERSTOCK_RATE),
+    )
+
     return BalanceWithPromosResponse(
         credits=user.get("credits", 0),
-        exchange_rate=_get_exchange_rate(),
+        exchange_rate=cfg.get("exchange_rate", settings.EXCHANGE_RATE),
+        credit_rates=credit_rates,
         active_promos=active_promos,
     )
 

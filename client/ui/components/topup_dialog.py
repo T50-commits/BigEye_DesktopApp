@@ -74,11 +74,12 @@ class DropZone(QFrame):
 
 
 class TopUpDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, promos: list = None):
         super().__init__(parent)
         self.setWindowTitle("Top Up Credits")
         self.setFixedWidth(460)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
+        self._promos = promos or []
         self._setup_ui()
 
     def _setup_ui(self):
@@ -112,6 +113,56 @@ class TopUpDialog(QDialog):
 
         layout.addWidget(bank)
 
+        # Promo display (if active promos exist)
+        if self._promos:
+            best = self._promos[0]
+            promo_box = QWidget()
+            promo_box.setObjectName("promoBox")
+            color = best.get("banner_color", "#FF4560")
+            promo_box.setStyleSheet(f"""
+                QWidget#promoBox {{
+                    background: {color}18;
+                    border: 1px solid {color}44;
+                    border-radius: 10px;
+                }}
+            """)
+            pl = QVBoxLayout(promo_box)
+            pl.setContentsMargins(14, 10, 14, 10)
+            pl.setSpacing(6)
+
+            promo_title = QLabel(best.get("banner_text", best.get("name", "")))
+            promo_title.setWordWrap(True)
+            promo_title.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: 700; background: transparent; border: none;")
+            pl.addWidget(promo_title)
+
+            # Show tiers if available
+            tiers = best.get("tiers")
+            if tiers:
+                for t in tiers:
+                    min_b = int(t.get("min_baht", 0))
+                    cr = int(t.get("credits", 0))
+                    base = min_b * 4
+                    star = " \u2B50" if cr > base else ""
+                    tier_lbl = QLabel(f"  Top up {min_b} THB \u2192 {cr:,} credits{star}")
+                    tier_lbl.setStyleSheet("color: #E8E8E8; font-size: 11px; background: transparent; border: none;")
+                    pl.addWidget(tier_lbl)
+
+            # Show rate override
+            override = best.get("override_rate")
+            if override:
+                rate_lbl = QLabel(f"  Special rate: 1 THB = {int(override)} credits")
+                rate_lbl.setStyleSheet("color: #E8E8E8; font-size: 11px; background: transparent; border: none;")
+                pl.addWidget(rate_lbl)
+
+            ends = best.get("ends_at", "")
+            if ends:
+                end_short = ends[:10] if len(ends) > 10 else ends
+                end_lbl = QLabel(f"  Ends: {end_short}")
+                end_lbl.setStyleSheet("color: #8892A8; font-size: 10px; background: transparent; border: none;")
+                pl.addWidget(end_lbl)
+
+            layout.addWidget(promo_box)
+
         # Drop zone
         self.drop_zone = DropZone()
         layout.addWidget(self.drop_zone)
@@ -133,6 +184,26 @@ class TopUpDialog(QDialog):
         amt_row.addWidget(thb)
         amt_row.addStretch()
         layout.addLayout(amt_row)
+
+        # Credit preview
+        self.preview_label = QLabel("")
+        self.preview_label.setStyleSheet("color: #00E396; font-size: 12px; font-weight: 600;")
+        self.preview_label.hide()
+        layout.addWidget(self.preview_label)
+        self.amount_input.textChanged.connect(self._update_preview)
+
+        # Promo code input
+        code_row = QHBoxLayout()
+        code_label = QLabel("Promo Code:")
+        code_label.setStyleSheet("color: #8892A8; font-size: 12px;")
+        code_row.addWidget(code_label)
+        self.code_input = QLineEdit()
+        self.code_input.setPlaceholderText("Optional")
+        self.code_input.setFixedWidth(160)
+        self.code_input.setMinimumHeight(36)
+        code_row.addWidget(self.code_input)
+        code_row.addStretch()
+        layout.addLayout(code_row)
 
         # Submit
         self.btn_submit = QPushButton("Submit Slip")
@@ -159,6 +230,45 @@ class TopUpDialog(QDialog):
         lbl = QLabel(text)
         lbl.setStyleSheet("color: #E8E8E8; font-size: 12px;")
         return lbl
+
+    def _update_preview(self, text: str):
+        """Update credit preview as user types amount."""
+        if not text or not text.isdigit() or int(text) <= 0:
+            self.preview_label.hide()
+            return
+
+        amount = int(text)
+        base = amount * 4
+        bonus = 0
+
+        # Check if any promo gives bonus
+        if self._promos:
+            best = self._promos[0]
+            tiers = best.get("tiers")
+            override = best.get("override_rate")
+            pct = best.get("bonus_percentage")
+            flat = best.get("bonus_credits")
+
+            if tiers:
+                for t in sorted(tiers, key=lambda x: x.get("min_baht", 0), reverse=True):
+                    if amount >= t.get("min_baht", 0):
+                        bonus = t.get("credits", 0) - base
+                        break
+            elif override:
+                bonus = int(amount * override) - base
+            elif pct:
+                bonus = int(base * pct / 100)
+            elif flat:
+                bonus = flat
+
+        total = base + max(bonus, 0)
+        if bonus > 0:
+            self.preview_label.setText(
+                f"You will receive: {total:,} credits ({base:,} base + {bonus:,} bonus \U0001F381)"
+            )
+        else:
+            self.preview_label.setText(f"You will receive: {total:,} credits")
+        self.preview_label.show()
 
     def _on_submit(self):
         slip = self.drop_zone.get_filepath()

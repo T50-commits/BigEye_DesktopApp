@@ -327,6 +327,32 @@ class Gallery(QWidget):
         self.btn_start.setFixedWidth(220)
         self.btn_start.setMinimumHeight(44)
         self.btn_start.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_start.setStyleSheet("""
+            QPushButton#startButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #FF00CC, stop:1 #7B2FFF);
+                border: none;
+                border-radius: 22px;
+                padding: 12px 30px;
+                color: #FFFFFF;
+                font-size: 14px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }
+            QPushButton#startButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #FF33DD, stop:1 #9B4FFF);
+            }
+            QPushButton#startButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #CC00AA, stop:1 #6622CC);
+            }
+            QPushButton#startButton:disabled {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #FF00CC44, stop:1 #7B2FFF44);
+                color: #FFFFFF88;
+            }
+        """)
         self.btn_start.clicked.connect(self.start_clicked.emit)
         btn_row.addWidget(self.btn_start)
 
@@ -335,6 +361,24 @@ class Gallery(QWidget):
         self.btn_stop.setFixedWidth(220)
         self.btn_stop.setMinimumHeight(44)
         self.btn_stop.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_stop.setStyleSheet("""
+            QPushButton#stopButton {
+                background: #FF4560;
+                border: none;
+                border-radius: 22px;
+                padding: 12px 30px;
+                color: #FFFFFF;
+                font-size: 14px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }
+            QPushButton#stopButton:hover {
+                background: #FF6B7F;
+            }
+            QPushButton#stopButton:pressed {
+                background: #CC3750;
+            }
+        """)
         self.btn_stop.clicked.connect(self.stop_clicked.emit)
         self.btn_stop.hide()
         btn_row.addWidget(self.btn_stop)
@@ -442,6 +486,20 @@ class Gallery(QWidget):
                 item.setIcon(QIcon(icon_pixmap))
                 break
 
+    def reset_file_statuses(self):
+        """Reset all file statuses to 'pending' and refresh thumbnails."""
+        for filepath in self._file_list:
+            self._file_statuses[filepath] = "pending"
+            filename = os.path.basename(filepath)
+            file_type = "video" if is_video(filepath) else "image"
+            pixmap = self._thumbnails.get(filepath, QPixmap())
+            icon_pixmap = create_thumbnail_icon(pixmap, filename, file_type, "pending")
+            for i in range(self.list_widget.count()):
+                item = self.list_widget.item(i)
+                if item.data(Qt.ItemDataRole.UserRole) == filepath:
+                    item.setIcon(QIcon(icon_pixmap))
+                    break
+
     def update_cost_estimate(self, file_count: int, rate: int, platform: str, balance: int):
         """Update the cost estimate bar."""
         cost = file_count * rate
@@ -467,6 +525,7 @@ class Gallery(QWidget):
 
     def reset_progress(self):
         """Reset progress bar."""
+        self.progress_bar.setMaximum(100)  # restore determinate mode
         self.progress_bar.setValue(0)
         self.progress_text.setText("")
         self.progress_percent.setText("")

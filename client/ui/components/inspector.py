@@ -3,7 +3,7 @@ BigEye Pro — Right Inspector Panel
 """
 import os
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QLineEdit, QTextEdit,
+    QWidget, QVBoxLayout, QLabel, QTextEdit,
     QPushButton, QScrollArea, QFrame
 )
 from PySide6.QtCore import Qt, Signal
@@ -170,31 +170,60 @@ class Inspector(QWidget):
         el.setSpacing(6)
 
         el.addWidget(self._make_label("Title"))
-        self.title_edit = QLineEdit()
-        self.title_edit.setMinimumHeight(36)
-        self.title_edit.editingFinished.connect(self._on_edit)
+        self.title_edit = QTextEdit()
+        self.title_edit.setFixedHeight(56)  # ~2 lines at 12px font
+        self.title_edit.setAcceptRichText(False)
+        self.title_edit.setTabChangesFocus(True)
+        self.title_edit.setStyleSheet("""
+            QTextEdit {
+                font-size: 12px;
+                padding: 6px 8px;
+            }
+        """)
         el.addWidget(self.title_edit)
 
         el.addWidget(self._make_label("Description"))
         self.desc_edit = QTextEdit()
-        self.desc_edit.setFixedHeight(70)
-        el.addWidget(self.desc_edit)
+        self.desc_edit.setMinimumHeight(100)
+        el.addWidget(self.desc_edit, 1)
 
         self.keywords_label = QLabel("Keywords (0)")
         self.keywords_label.setStyleSheet("color: #8892A8; font-size: 11px;")
         el.addWidget(self.keywords_label)
         self.keywords_edit = QTextEdit()
-        self.keywords_edit.setFixedHeight(110)
-        el.addWidget(self.keywords_edit)
+        self.keywords_edit.setMinimumHeight(140)
+        el.addWidget(self.keywords_edit, 2)
 
         self.edit_container.hide()
-        layout.addWidget(self.edit_container)
-        layout.addStretch(1)
+        layout.addWidget(self.edit_container, 1)
 
-        self.btn_export = QPushButton("\U0001F4BE Export CSV")
+        self.btn_export = QPushButton("\U0001F504 Re-export CSV")
         self.btn_export.setObjectName("exportButton")
         self.btn_export.setMinimumHeight(38)
         self.btn_export.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_export.setEnabled(False)
+        self.btn_export.setStyleSheet("""
+            QPushButton#exportButton {
+                background: #00B4D812;
+                border: 1px solid #00B4D833;
+                border-radius: 8px;
+                padding: 7px 14px;
+                color: #00B4D8;
+                font-size: 12px;
+                font-weight: 500;
+            }
+            QPushButton#exportButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #FF00CC18, stop:1 #7B2FFF18);
+                border-color: #FF00CC66;
+                color: #FF00CC;
+            }
+            QPushButton#exportButton:disabled {
+                color: #4A5568;
+                border-color: #1A3A6B44;
+                background: transparent;
+            }
+        """)
         self.btn_export.clicked.connect(self.export_clicked.emit)
         layout.addWidget(self.btn_export)
 
@@ -212,7 +241,7 @@ class Inspector(QWidget):
         if not self._current_file:
             return
         data = {
-            "title": self.title_edit.text(),
+            "title": self.title_edit.toPlainText().replace("\n", " ").strip(),
             "description": self.desc_edit.toPlainText(),
             "keywords": [k.strip() for k in self.keywords_edit.toPlainText().split(",") if k.strip()],
         }
@@ -241,7 +270,7 @@ class Inspector(QWidget):
         if status == "completed" or status == "success":
             self.status_label.hide()
             self.edit_container.show()
-            self.title_edit.setText(result.get("title", ""))
+            self.title_edit.setPlainText(result.get("title", ""))
             self.desc_edit.setPlainText(result.get("description", ""))
             kw = result.get("keywords", [])
             if isinstance(kw, list):
@@ -273,6 +302,10 @@ class Inspector(QWidget):
         self.title_edit.setReadOnly(is_processing)
         self.desc_edit.setReadOnly(is_processing)
         self.keywords_edit.setReadOnly(is_processing)
+
+    def enable_export(self, enabled: bool = True):
+        """Enable Re-export button after job completes and auto-save is done."""
+        self.btn_export.setEnabled(enabled)
 
     def clear(self):
         self._current_file = ""

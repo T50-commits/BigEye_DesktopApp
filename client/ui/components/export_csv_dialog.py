@@ -13,7 +13,7 @@ class ExportCsvDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Export CSV")
+        self.setWindowTitle("Re-export CSV")
         self.setFixedWidth(440)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
         self._setup_ui()
@@ -23,9 +23,39 @@ class ExportCsvDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        title = QLabel("\U0001F4BE Export CSV")
+        title = QLabel("\U0001F504 Re-export CSV")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #E8E8E8;")
         layout.addWidget(title)
+
+        # Info box
+        info_box = QWidget()
+        info_box.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #00B4D812, stop:1 #00B4D806);
+                border: 1px solid #00B4D833;
+                border-radius: 12px;
+            }
+        """)
+        info_layout = QHBoxLayout(info_box)
+        info_layout.setContentsMargins(16, 12, 16, 12)
+        info_layout.setSpacing(12)
+
+        info_icon = QLabel("\u2139\uFE0F")
+        info_icon.setStyleSheet("font-size: 22px; background: transparent; border: none;")
+        info_layout.addWidget(info_icon, 0)
+
+        info_text = QLabel(
+            "<b style='color: #00B4D8;'>Re-export with Your Edits</b><br>"
+            "<span style='color: #8892A8; font-size: 12px;'>"
+            "This will generate new CSV files that include any changes "
+            "you've made to titles, descriptions, and keywords.</span>"
+        )
+        info_text.setWordWrap(True)
+        info_text.setStyleSheet("background: transparent; border: none;")
+        info_layout.addWidget(info_text, 1)
+
+        layout.addWidget(info_box)
 
         # Warning box
         warning = QWidget()
@@ -90,7 +120,7 @@ class ExportCsvDialog(QDialog):
         # Buttons
         btn_row = QHBoxLayout()
 
-        btn_export = QPushButton("Export CSV")
+        btn_export = QPushButton("Re-export CSV")
         btn_export.setObjectName("confirmButton")
         btn_export.setMinimumHeight(42)
         btn_export.setMinimumWidth(130)

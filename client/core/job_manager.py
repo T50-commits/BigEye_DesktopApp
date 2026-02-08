@@ -9,7 +9,7 @@ import time
 
 from PySide6.QtCore import QObject, Signal
 
-from core.config import APP_VERSION, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+from core.config import APP_VERSION, AES_KEY_HEX, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 from core.api_client import api, APIError, NetworkError
 from core.engines.gemini_engine import GeminiEngine, GeminiError
 from core.engines.transcoder import Transcoder
@@ -46,8 +46,8 @@ class JobManager(QObject):
         self._queue = QueueManager(self)
         self._keyword_processor = KeywordProcessor()
         self._copyright_guard = CopyrightGuard()
-        self._system_prompt = ""
-        self._user_prompt = ""
+        self._prompt_template = ""  # raw prompt with {placeholders}
+        self._dictionary = ""       # keyword dictionary for iStock
         self._folder_path = ""
 
         # Connect queue signals
@@ -94,18 +94,20 @@ class JobManager(QObject):
             encrypted_config = reserve_data.get("config", "")
             concurrency = reserve_data.get("concurrency", {})
 
-            # ── Step 2: Decrypt prompts with AES ──
+            # ── Step 2: Decrypt prompt with AES ──
             if encrypted_config:
                 try:
-                    config = decrypt_aes(encrypted_config)
-                    import json
-                    config_data = json.loads(config)
-                    self._system_prompt = config_data.get("system_prompt", "")
-                    self._user_prompt = config_data.get("user_prompt", "")
+                    self._prompt_template = decrypt_aes(encrypted_config, AES_KEY_HEX)
+                    logger.info(f"Prompt decrypted: {len(self._prompt_template)} chars")
                 except Exception as e:
-                    logger.warning(f"Config decrypt failed, using defaults: {e}")
+                    logger.warning(f"Config decrypt failed: {e}")
+                    self._prompt_template = ""
 
-            # ── Step 3: Download dictionary (if iStock) ──
+            # ── Step 3: Store dictionary + blacklist ──
+            self._dictionary = reserve_data.get("dictionary", "")
+            if self._dictionary:
+                logger.info(f"Dictionary loaded: {len(self._dictionary.strip().splitlines())} words")
+
             blacklist = reserve_data.get("blacklist", [])
             if blacklist:
                 self._copyright_guard.initialize(blacklist)
@@ -121,8 +123,9 @@ class JobManager(QObject):
             self._engine.set_model(model)
 
             # ── Step 6: Create context cache if large job ──
-            if len(files) >= CACHE_THRESHOLD and self._system_prompt:
-                self._engine.create_cache(self._system_prompt)
+            cache_threshold = reserve_data.get("cache_threshold", CACHE_THRESHOLD)
+            if len(files) >= cache_threshold and self._prompt_template:
+                self._engine.create_cache(self._prompt_template)
 
             # ── Step 7: Create video proxies ──
             # (done lazily inside _process_file)
@@ -154,24 +157,61 @@ class JobManager(QObject):
 
     # ── File processing (runs on worker thread) ──
 
+    def _build_prompt(self, filepath: str) -> str:
+        """Build the final prompt by filling in placeholders."""
+        is_vid = is_video(filepath)
+        media_type = "video" if is_vid else "image"
+        max_kw = self._settings.get("max_keywords", 45)
+        title_limit = self._settings.get("title_length", 70)
+        desc_limit = self._settings.get("description_length", 200)
+        title_min = int(title_limit * 0.75)
+        desc_min = int(desc_limit * 0.75)
+
+        # Video-specific instruction
+        video_instruction = ""
+        if is_vid:
+            video_instruction = (
+                "For video: Also provide 'poster_timecode' (best frame as HH:MM:SS:FF) "
+                "and 'shot_speed' (one of: Real Time, Slow Motion, Time Lapse)."
+            )
+
+        prompt = self._prompt_template
+        prompt = prompt.replace("{media_type_str}", media_type)
+        prompt = prompt.replace("{keyword_count}", str(max_kw + 10))  # overfetch
+        prompt = prompt.replace("{title_min}", str(title_min))
+        prompt = prompt.replace("{title_limit}", str(title_limit))
+        prompt = prompt.replace("{desc_min}", str(desc_min))
+        prompt = prompt.replace("{desc_limit}", str(desc_limit))
+        prompt = prompt.replace("{video_instruction}", video_instruction)
+
+        # Insert dictionary for iStock mode
+        if "{keyword_data}" in prompt:
+            prompt = prompt.replace("{keyword_data}", self._dictionary)
+
+        return prompt
+
     def _process_file(self, filepath: str) -> dict:
         """Process a single file. Called by QueueManager worker threads."""
         filename = os.path.basename(filepath)
         start_time = time.time()
 
         try:
-            prompt = self._user_prompt or f"Generate metadata for this file: {filename}"
+            # Build prompt with placeholders filled
+            if self._prompt_template:
+                prompt = self._build_prompt(filepath)
+            else:
+                prompt = f"Analyze this {'video' if is_video(filepath) else 'image'} and generate stock metadata in JSON with keys: title, description, keywords."
 
             if is_video(filepath):
                 # Create proxy for video
                 proxy = Transcoder.create_proxy(filepath)
                 process_path = proxy if proxy else filepath
-                result = self._engine.process_video(process_path, prompt, self._system_prompt)
+                result = self._engine.process_video(process_path, prompt)
                 # Cleanup proxy
                 if proxy:
                     Transcoder.cleanup_proxy(proxy)
             else:
-                result = self._engine.process_photo(filepath, prompt, self._system_prompt)
+                result = self._engine.process_photo(filepath, prompt)
 
             # Post-process keywords
             keywords = result.get("keywords", [])

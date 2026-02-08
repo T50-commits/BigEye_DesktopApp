@@ -21,7 +21,9 @@ QLineEdit:focus, QTextEdit:focus {
   border-color: #FF00CC;
 }
 
-/* ComboBox dropdown */
+/* ComboBox dropdown — popup styling is done via style_combo() in sidebar.py
+   because the popup is a separate top-level QFrame window, not a child of QComboBox,
+   so CSS descendant selectors (QComboBox QAbstractItemView) don't work. */
 QComboBox::drop-down {
   border: none;
   width: 30px;
@@ -32,28 +34,6 @@ QComboBox::down-arrow {
   border-right: 5px solid transparent;
   border-top: 6px solid #8892A8;
   margin-right: 10px;
-}
-QComboBox QAbstractItemView {
-  background: #16213E;
-  border: 1px solid #1A3A6B;
-  color: #8892A8;
-  selection-background-color: #0F3460;
-  selection-color: #E8E8E8;
-  padding: 4px;
-  outline: none;
-}
-QComboBox QAbstractItemView::item {
-  padding: 6px 10px;
-  min-height: 24px;
-  color: #8892A8;
-}
-QComboBox QAbstractItemView::item:hover {
-  background: #0F3460;
-  color: #E8E8E8;
-}
-QComboBox QAbstractItemView::item:selected {
-  background: #0F3460;
-  color: #E8E8E8;
 }
 
 /* Ghost Buttons (default) */
@@ -87,7 +67,11 @@ QPushButton#startButton, QPushButton#confirmButton, QPushButton#signInButton, QP
   letter-spacing: 1px;
 }
 QPushButton#startButton:hover, QPushButton#confirmButton:hover, QPushButton#signInButton:hover, QPushButton#registerButton:hover {
-  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #FF33D6, stop:0.5 #D966FF, stop:1 #9B59FF);
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #FF66E0, stop:0.5 #DD88FF, stop:1 #A870FF);
+  color: #FFFFFF;
+}
+QPushButton#startButton:pressed, QPushButton#confirmButton:pressed, QPushButton#signInButton:pressed, QPushButton#registerButton:pressed {
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #CC00AA, stop:0.5 #AA33DD, stop:1 #6020CC);
 }
 
 /* Stop Button */
