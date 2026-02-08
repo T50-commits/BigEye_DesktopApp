@@ -140,7 +140,7 @@ table_data = []
 for u in users:
     table_data.append({
         "อีเมล": u.get("email", "—"),
-        "ชื่อ": u.get("full_name", u.get("name", "—")),
+        "ชื่อ": u.get("full_name", "—"),
         "เครดิต": u.get("credits", 0),
         "สถานะ": u.get("status", "active"),
         "ใช้งานล่าสุด": format_time_ago(u.get("last_login")),
@@ -170,12 +170,12 @@ if selected_rows:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown(f"**ชื่อ:** {user.get('full_name', user.get('name', '—'))}")
+        st.markdown(f"**ชื่อ:** {user.get('full_name', '—')}")
         st.markdown(f"**โทรศัพท์:** {user.get('phone', '—')}")
         st.markdown(f"**Hardware ID:** `{user.get('hardware_id', '—')}`")
     with col2:
         st.markdown(f"**เครดิต:** {user.get('credits', 0):,}")
-        st.markdown(f"**เติมเงินรวม:** ฿{user.get('total_topup_baht', user.get('total_topup', 0)):,}")
+        st.markdown(f"**เติมเงินรวม:** ฿{user.get('total_topup_baht', 0):,}")
         st.markdown(f"**สถานะ:** {user.get('status', 'active')}")
     with col3:
         created = user.get("created_at", "—")
@@ -212,9 +212,9 @@ if selected_rows:
                     "type": "ADJUSTMENT",
                     "amount": adj_amount,
                     "balance_after": new_balance,
+                    "reference_id": uid,
                     "description": f"แอดมินปรับ: {adj_reason or 'ไม่ระบุเหตุผล'}",
                     "created_at": datetime.now(timezone.utc),
-                    "admin": True,
                 })
 
                 st.success(f"✅ ปรับเครดิตแล้ว: {current:,} → {new_balance:,}")

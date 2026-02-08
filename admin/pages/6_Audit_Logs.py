@@ -53,7 +53,7 @@ def load_logs(severity_filter: str = "ALL", days: int = 7, limit: int = 200) -> 
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         filtered = []
         for r in results:
-            ts = r.get("timestamp") or r.get("created_at")
+            ts = r.get("created_at")
             if ts:
                 if hasattr(ts, "tzinfo") and ts.tzinfo is None:
                     ts = ts.replace(tzinfo=timezone.utc)
@@ -65,7 +65,7 @@ def load_logs(severity_filter: str = "ALL", days: int = 7, limit: int = 200) -> 
 
         # Sort by timestamp/created_at descending
         def _get_ts(x):
-            return x.get("timestamp") or x.get("created_at") or datetime.min.replace(tzinfo=timezone.utc)
+            return x.get("created_at") or datetime.min.replace(tzinfo=timezone.utc)
         results.sort(key=_get_ts, reverse=True)
         results = results[:limit]
 
@@ -142,16 +142,16 @@ st.caption(f"แสดง {len(logs)} รายการ")
 # ── Log entries ──
 
 for i, log in enumerate(logs):
-    ts = log.get("timestamp") or log.get("created_at", "")
+    ts = log.get("created_at", "")
     if hasattr(ts, "strftime"):
         ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
     else:
         ts_str = str(ts)
 
     sev = log.get("severity", "INFO")
-    event_type = log.get("event_type", log.get("event", log.get("action", "—")))
+    event_type = log.get("event_type", "—")
     event_label = _EVENT_LABELS.get(event_type, event_type)
-    user_id = log.get("user_id", log.get("uid", ""))
+    user_id = log.get("user_id", "")
     user_email = _resolve_email(user_id) if user_id else "—"
     emoji = severity_color(sev)
 

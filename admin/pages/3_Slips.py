@@ -43,13 +43,13 @@ def load_slips(status_filter: str = "ALL", limit: int = 100) -> list[dict]:
 
 
 def approve_slip(slip_id: str, slip: dict, credit_amount: int):
-    uid = slip.get("user_id", slip.get("uid", ""))
-    amount_thb = slip.get("amount", slip.get("amount_detected", 0))
+    uid = slip.get("user_id", "")
+    amount_thb = slip.get("amount_detected", 0)
 
     slips_ref().document(slip_id).update({
         "status": "VERIFIED",
         "verified_at": datetime.now(timezone.utc),
-        "credit_amount": credit_amount,
+        "amount_credited": credit_amount,
     })
 
     user_doc = users_ref().document(uid)
@@ -68,18 +68,21 @@ def approve_slip(slip_id: str, slip: dict, credit_amount: int):
             "user_id": uid,
             "type": "TOPUP",
             "amount": credit_amount,
-            "amount_thb": amount_thb,
             "balance_after": new_balance,
-            "slip_id": slip_id,
+            "reference_id": slip_id,
             "description": f"เติมเงิน {amount_thb} บาท → {credit_amount} เครดิต",
             "created_at": datetime.now(timezone.utc),
+            "metadata": {
+                "baht_amount": amount_thb,
+                "slip_ref": slip_id,
+            },
         })
 
 
 def reject_slip(slip_id: str, reason: str):
     slips_ref().document(slip_id).update({
         "status": "REJECTED",
-        "rejected_at": datetime.now(timezone.utc),
+        "verified_at": datetime.now(timezone.utc),
         "reject_reason": reason,
     })
 
@@ -118,7 +121,7 @@ for s in slips:
     table_data.append({
         "วันที่": created,
         "ผู้ใช้": s.get("email", s.get("user_id", "—")[:12]),
-        "จำนวน": f"{s.get('amount', s.get('amount_detected', 0))} บาท",
+        "จำนวน": f"{s.get('amount_detected', 0)} บาท",
         "สถานะ": s.get("status", "—"),
     })
 
@@ -146,7 +149,7 @@ if selected_rows:
     review_left, review_right = st.columns([1, 1])
 
     with review_left:
-        slip_image = slip.get("slip_base64", slip.get("slip_image", ""))
+        slip_image = slip.get("image_url", "")
         if slip_image:
             try:
                 if slip_image.startswith("data:"):
@@ -162,9 +165,9 @@ if selected_rows:
 
     with review_right:
         st.markdown(f"**ผู้ใช้:** {slip.get('email', slip.get('user_id', '—'))}")
-        st.markdown(f"**จำนวน:** {slip.get('amount', slip.get('amount_detected', 0))} บาท")
+        st.markdown(f"**จำนวน:** {slip.get('amount_detected', 0)} บาท")
 
-        bank_ref = slip.get("bank_ref", slip.get("reference", "—"))
+        bank_ref = slip.get("bank_ref", "—")
         st.markdown(f"**เลขอ้างอิงธนาคาร:** {bank_ref}")
 
         created = slip.get("created_at", "—")
@@ -177,7 +180,7 @@ if selected_rows:
         if slip.get("status") == "PENDING":
             st.divider()
 
-            amount_thb = slip.get("amount", 0)
+            amount_thb = slip.get("amount_detected", 0)
             exchange_rate = 4
             default_credits = amount_thb * exchange_rate
 

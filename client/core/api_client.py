@@ -126,7 +126,7 @@ class APIClient:
     def get_balance(self) -> int:
         """GET /credit/balance — returns credit balance as int."""
         data = self._get("/credit/balance")
-        return data.get("credits", data.get("balance", 0))
+        return data.get("credits", 0)
 
     def get_balance_with_promos(self) -> dict:
         """GET /credit/balance — returns full response with credits + active_promos + credit_rates."""

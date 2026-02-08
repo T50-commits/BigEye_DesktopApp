@@ -63,12 +63,12 @@ def load_jobs(status_filter: str = "ALL", limit: int = 100) -> list[dict]:
 
 def force_refund_job(job: dict):
     job_id = job.get("id", "")
-    uid = job.get("user_id", job.get("uid", ""))
+    uid = job.get("user_id", "")
     reserved = job.get("reserved_credits", job.get("file_count", 0) * job.get("credit_rate", 3))
 
     jobs_ref().document(job_id).update({
         "status": "EXPIRED",
-        "expired_at": datetime.now(timezone.utc),
+        "completed_at": datetime.now(timezone.utc),
         "refund_amount": reserved,
         "admin_force_refund": True,
     })
@@ -86,10 +86,9 @@ def force_refund_job(job: dict):
             "type": "REFUND",
             "amount": reserved,
             "balance_after": new_balance,
-            "job_id": job_id,
+            "reference_id": job_id,
             "description": f"แอดมินคืนเครดิตงานค้าง {job_id[:8]}",
             "created_at": datetime.now(timezone.utc),
-            "admin": True,
         })
 
     return reserved
@@ -182,26 +181,26 @@ if selected_rows:
     col1, col2, col3 = st.columns(3)
     with col1:
         reserved = job.get("reserved_credits", 0)
-        used = job.get("actual_usage", job.get("used_credits", 0))
-        refunded = job.get("refund_amount", job.get("refunded", 0))
+        used = job.get("actual_usage", 0)
+        refunded = job.get("refund_amount", 0)
         st.markdown(f"**จองไว้:** {reserved:,} cr")
         st.markdown(f"**ใช้แล้ว:** {used:,} cr")
         st.markdown(f"**คืนแล้ว:** {refunded:,} cr")
 
     with col2:
-        successful = job.get("success_count", job.get("successful", 0))
-        failed = job.get("failed_count", job.get("failed", 0))
+        successful = job.get("success_count", 0)
+        failed = job.get("failed_count", 0)
         st.markdown(f"**สำเร็จ:** {successful}")
         st.markdown(f"**ล้มเหลว:** {failed}")
         st.markdown(f"**สถานะ:** {job.get('status', '—')}")
 
     with col3:
         client_info = job.get("client_info", {})
-        st.markdown(f"**โมเดล:** {client_info.get('model_used', job.get('model', '—'))}")
-        st.markdown(f"**เวอร์ชัน:** {client_info.get('app_version', job.get('version', '—'))}")
+        st.markdown(f"**โมเดล:** {client_info.get('model_used', '—')}")
+        st.markdown(f"**เวอร์ชัน:** {client_info.get('app_version', '—')}")
         st.markdown(f"**โหมด:** {job.get('mode', '—')}")
 
-    job_user_id = job.get('user_id', job.get('uid', ''))
+    job_user_id = job.get('user_id', '')
     st.markdown(f"**Job ID:** `{job_id}`")
     st.markdown(f"**ผู้ใช้:** {resolve_email(job_user_id)} (`{job_user_id[:12]}...`)")
 
