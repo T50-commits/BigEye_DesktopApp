@@ -22,13 +22,15 @@ class CSVExporter:
     """Exports metadata results to platform-specific CSV formats."""
 
     @staticmethod
-    def export_istock(results: dict, folder_path: str, model: str, keyword_style: str = "") -> list:
+    def export_istock(results: dict, folder_path: str, model: str,
+                      keyword_style: str = "", re_export: bool = False) -> list:
         """
         Export iStock CSV — auto-splits into photos + videos.
         results: {filename: {title, description, keywords, category, status, ...}}
         Returns list of created CSV file paths.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        suffix = "_re-export" if re_export else ""
         csv_files = []
 
         # Split results into photos and videos
@@ -45,14 +47,14 @@ class CSVExporter:
 
         # Export photos CSV
         if photos:
-            filepath = os.path.join(folder_path, f"Metadata iStock Photos_{model}_{timestamp}.csv")
+            filepath = os.path.join(folder_path, f"Metadata iStock Photos_{model}_{timestamp}{suffix}.csv")
             CSVExporter._write_istock_photo_csv(filepath, photos, ISTOCK_COLS_PHOTO)
             csv_files.append(filepath)
             logger.info(f"iStock photos CSV: {len(photos)} files → {filepath}")
 
         # Export videos CSV
         if videos:
-            filepath = os.path.join(folder_path, f"Metadata iStock Videos_{model}_{timestamp}.csv")
+            filepath = os.path.join(folder_path, f"Metadata iStock Videos_{model}_{timestamp}{suffix}.csv")
             CSVExporter._write_istock_video_csv(filepath, videos, ISTOCK_COLS_VIDEO)
             csv_files.append(filepath)
             logger.info(f"iStock videos CSV: {len(videos)} files → {filepath}")
@@ -60,14 +62,16 @@ class CSVExporter:
         return csv_files
 
     @staticmethod
-    def export_adobe(results: dict, folder_path: str, model: str, keyword_style: str = "") -> list:
+    def export_adobe(results: dict, folder_path: str, model: str,
+                     keyword_style: str = "", re_export: bool = False) -> list:
         """
         Export Adobe Stock CSV.
         Returns list of created CSV file paths.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         style_tag = f"_{keyword_style}" if keyword_style else ""
-        filepath = os.path.join(folder_path, f"Metadata Adobe{style_tag}_{model}_{timestamp}.csv")
+        suffix = "_re-export" if re_export else ""
+        filepath = os.path.join(folder_path, f"Metadata Adobe{style_tag}_{model}_{timestamp}{suffix}.csv")
 
         success = {fn: d for fn, d in results.items() if d.get("status") == "success"}
         if not success:
@@ -94,14 +98,16 @@ class CSVExporter:
             return []
 
     @staticmethod
-    def export_shutterstock(results: dict, folder_path: str, model: str, keyword_style: str = "") -> list:
+    def export_shutterstock(results: dict, folder_path: str, model: str,
+                            keyword_style: str = "", re_export: bool = False) -> list:
         """
         Export Shutterstock CSV.
         Returns list of created CSV file paths.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         style_tag = f"_{keyword_style}" if keyword_style else ""
-        filepath = os.path.join(folder_path, f"Metadata Shutterstock{style_tag}_{model}_{timestamp}.csv")
+        suffix = "_re-export" if re_export else ""
+        filepath = os.path.join(folder_path, f"Metadata Shutterstock{style_tag}_{model}_{timestamp}{suffix}.csv")
 
         success = {fn: d for fn, d in results.items() if d.get("status") == "success"}
         if not success:
@@ -133,28 +139,30 @@ class CSVExporter:
             return []
 
     @staticmethod
-    def export_adobe_shutterstock(results: dict, folder_path: str, model: str, keyword_style: str = "") -> list:
+    def export_adobe_shutterstock(results: dict, folder_path: str, model: str,
+                                  keyword_style: str = "", re_export: bool = False) -> list:
         """
         Export both Adobe and Shutterstock CSVs.
         Returns combined list of created CSV file paths.
         """
         files = []
-        files.extend(CSVExporter.export_adobe(results, folder_path, model, keyword_style))
-        files.extend(CSVExporter.export_shutterstock(results, folder_path, model, keyword_style))
+        files.extend(CSVExporter.export_adobe(results, folder_path, model, keyword_style, re_export))
+        files.extend(CSVExporter.export_shutterstock(results, folder_path, model, keyword_style, re_export))
         return files
 
     @staticmethod
     def export_for_platform(platform: str, results: dict,
                             folder_path: str, model: str,
-                            keyword_style: str = "") -> list:
+                            keyword_style: str = "",
+                            re_export: bool = False) -> list:
         """
         Export CSV for the specified platform name.
         Convenience method used by JobManager.
         """
         if "istock" in platform.lower():
-            return CSVExporter.export_istock(results, folder_path, model)
+            return CSVExporter.export_istock(results, folder_path, model, re_export=re_export)
         elif "adobe" in platform.lower() or "shutterstock" in platform.lower():
-            return CSVExporter.export_adobe_shutterstock(results, folder_path, model, keyword_style)
+            return CSVExporter.export_adobe_shutterstock(results, folder_path, model, keyword_style, re_export)
         else:
             logger.warning(f"Unknown platform for CSV export: {platform}")
             return []

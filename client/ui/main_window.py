@@ -557,11 +557,15 @@ class MainWindow(QMainWindow):
         # Default to the current gallery folder
         default_dir = self.gallery.get_folder_path() or ""
 
-        save_dir = QFileDialog.getExistingDirectory(
-            self, "Choose export folder", default_dir
-        )
-        if not save_dir:
+        # Use manual QFileDialog so we can change the accept button to "Save Here"
+        dlg = QFileDialog(self, "Save CSV to folder", default_dir)
+        dlg.setFileMode(QFileDialog.FileMode.Directory)
+        dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        dlg.setLabelText(QFileDialog.DialogLabel.Accept, "Save Here")
+        if not dlg.exec():
             return  # User cancelled
+
+        save_dir = dlg.selectedFiles()[0]
 
         settings = self.sidebar.get_settings()
         platform = settings.get("platform", "iStock")
@@ -578,11 +582,12 @@ class MainWindow(QMainWindow):
 
         csv_files = CSVExporter.export_for_platform(
             platform, self._results, save_dir, model, style_tag,
+            re_export=True,
         )
 
         if csv_files:
             names = [os.path.basename(f) for f in csv_files]
-            self.status_bar.showMessage(f"CSV exported: {', '.join(names)}")
+            self.status_bar.showMessage(f"CSV re-exported: {', '.join(names)}")
             logger.info(f"Re-export CSV: {csv_files}")
         else:
             self.status_bar.showMessage("No successful results to export")
