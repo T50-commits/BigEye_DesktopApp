@@ -14,7 +14,44 @@ from utils.theme import inject_css
 from utils.components import metric_card, alert_card, chart_card
 
 inject_css()
-st.header("📊 แดชบอร์ด")
+
+# ── Page-specific CSS for grid layout ──
+st.markdown("""
+<style>
+.mg{display:grid;gap:16px;margin-bottom:24px}
+.mg4{grid-template-columns:repeat(4,1fr)}
+.mg3{grid-template-columns:repeat(3,1fr)}
+.mg2{grid-template-columns:repeat(2,1fr)}
+.mc{background:#1a2035;border:1px solid #1e293b;border-radius:14px;padding:22px 20px;position:relative;overflow:hidden;transition:all .3s}
+.mc:hover{border-color:#334155;transform:translateY(-2px);box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.mc .gw{position:absolute;top:-30px;right:-30px;width:80px;height:80px;border-radius:50%;filter:blur(40px);opacity:.15}
+.mc .lb{font-size:.78rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-weight:600;display:flex;align-items:center;gap:8px}
+.mc .vl{font-size:2rem;font-weight:800;line-height:1.1;margin-bottom:4px}
+.mc .su{font-size:.75rem;color:#64748b;display:flex;align-items:center;gap:4px}
+.tu{color:#10b981}.td{color:#ef4444}
+.ar{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.ac{display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:14px;border:1px solid;transition:all .2s}
+.ac.w{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25)}
+.ac.d{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25)}
+.ac.s{background:rgba(16,185,129,.06);border-color:rgba(16,185,129,.2);grid-column:1/-1}
+.ac .ai{font-size:1.6rem}
+.ac .at .tt{font-weight:700;font-size:.95rem}
+.ac .at .ds{font-size:.78rem;color:#64748b;margin-top:2px}
+.ac .ab{margin-left:auto;padding:6px 14px;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#94a3b8;transition:all .2s;text-decoration:none;display:inline-block}
+.ac .ab:hover{background:rgba(255,255,255,.1);color:#f1f5f9}
+.cr{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.cc{background:#1a2035;border:1px solid #1e293b;border-radius:14px;padding:24px}
+.cc .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.cc .cht{font-weight:700;font-size:1rem}
+.cc .cp{font-size:.75rem;color:#64748b;padding:4px 10px;background:#0f1629;border-radius:8px;border:1px solid #1e293b}
+.tb-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.tb-head .pt{font-size:1.25rem;font-weight:700;display:flex;align-items:center;gap:10px}
+.tb-head .acts{display:flex;align-items:center;gap:12px}
+.clk{font-family:'JetBrains Mono',monospace;font-size:.8rem;color:#64748b}
+@media(max-width:1200px){.mg4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){.mg4,.mg3,.mg2,.ar,.cr{grid-template-columns:1fr}}
+</style>
+""", unsafe_allow_html=True)
 
 # ── Helper: query Firestore with caching ──
 
@@ -166,87 +203,128 @@ def load_pending_actions():
 
 # ── Render ──
 
-_top_left, _top_right = st.columns([3, 1])
-with _top_right:
+stats = load_today_stats()
+pending_slips, stuck_jobs = load_pending_actions()
+
+# ── Header bar (like prototype) ──
+now_local = datetime.now(timezone(timedelta(hours=7)))
+thai_months = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+               "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+thai_year = now_local.year + 543
+clock_str = f"{now_local.strftime('%H:%M:%S')} • {now_local.day:02d} {thai_months[now_local.month]} {thai_year}"
+
+hdr_left, hdr_right = st.columns([3, 1])
+with hdr_left:
+    st.markdown(f"""
+    <div class="tb-head">
+        <div class="pt">📊 แดชบอร์ด</div>
+        <div class="acts">
+            <span class="clk">{clock_str}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+with hdr_right:
     if st.button("🔄 รีเฟรช", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-stats = load_today_stats()
-pending_slips, stuck_jobs = load_pending_actions()
+# ── Helper: build metric card as raw HTML (matching prototype .mc class) ──
+def _mc(icon, label, value, color, sub_html=""):
+    return f"""<div class="mc"><div class="gw" style="background:{color}"></div>
+    <div class="lb">{icon} {label}</div>
+    <div class="vl" style="color:{color}">{value}</div>
+    <div class="su">{sub_html}</div></div>"""
 
-# Row 1: Metric Cards (4 columns)
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    st.markdown(metric_card("👥", "ผู้ใช้งาน", f"{stats['active_users']:,}", "#3b82f6", "ล็อกอินใน 24 ชม."), unsafe_allow_html=True)
-with c2:
-    st.markdown(metric_card("🆕", "สมัครใหม่", str(stats["new_users"]), "#8b5cf6", "วันนี้"), unsafe_allow_html=True)
-with c3:
-    st.markdown(metric_card("💰", "รายรับ", f"฿{stats['topup_thb']:,}", "#10b981", "เงินจริงที่ลูกค้าเติมวันนี้"), unsafe_allow_html=True)
-with c4:
-    st.markdown(metric_card("📊", "รายได้รับรู้", f"฿{stats['recognized_thb']:,.2f}", "#06b6d4", f"เครดิตที่ใช้ ÷ {stats['exchange_rate']} = บาท"), unsafe_allow_html=True)
+# ── Row 1: Metric Cards (4 columns — CSS Grid) ──
+total = stats["jobs"]
+errors = stats["errors"]
+err_pct = round(errors / total * 100, 1) if total > 0 else 0
+success_rate = round(((total - errors) / total * 100), 1) if total > 0 else 100
+rate_color = "#10b981" if success_rate >= 95 else "#f59e0b" if success_rate >= 80 else "#ef4444"
 
-st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+st.markdown(f"""
+<div class="mg mg4">
+    {_mc("👥", "ผู้ใช้งาน", f"{stats['active_users']:,}", "#3b82f6",
+         f'<span class="tu">↑</span> ล็อกอินใน 24 ชม.')}
+    {_mc("🆕", "สมัครใหม่", str(stats["new_users"]), "#8b5cf6",
+         f'<span class="tu">↑ {stats["new_users"]}</span> วันนี้')}
+    {_mc("💰", "รายรับ (เติมเงิน)", f"฿{stats['topup_thb']:,}", "#10b981",
+         "เงินจริงที่ลูกค้าเติมวันนี้")}
+    {_mc("📊", "รายได้รับรู้", f"฿{stats['recognized_thb']:,.2f}", "#06b6d4",
+         f"เครดิตที่ใช้ ÷ {stats['exchange_rate']} = บาท")}
+</div>
+""", unsafe_allow_html=True)
 
-# Row 2: Jobs (3 columns)
-c5, c6, c7 = st.columns(3)
-with c5:
-    st.markdown(metric_card("⚙️", "งานทั้งหมด", str(stats["jobs"]), "#f59e0b", "วันนี้"), unsafe_allow_html=True)
-with c6:
-    err_color = "#ef4444" if stats["errors"] > 0 else "#10b981"
-    st.markdown(metric_card("❌", "งานผิดพลาด", str(stats["errors"]), err_color, "วันนี้"), unsafe_allow_html=True)
-with c7:
-    total = stats["jobs"]
-    success_rate = round(((total - stats["errors"]) / total * 100), 1) if total > 0 else 100
-    rate_color = "#10b981" if success_rate >= 95 else "#f59e0b" if success_rate >= 80 else "#ef4444"
-    st.markdown(metric_card("✅", "อัตราสำเร็จ", f"{success_rate}%", rate_color, f"{total - stats['errors']}/{total} งาน"), unsafe_allow_html=True)
+# ── Row 2: Jobs (3 columns — CSS Grid) ──
+st.markdown(f"""
+<div class="mg mg3">
+    {_mc("⚙️", "งานทั้งหมด", str(total), "#f59e0b", "วันนี้")}
+    {_mc("❌", "งานผิดพลาด", str(errors), "#ef4444",
+         f'<span class="td">{err_pct}%</span> error rate')}
+    {_mc("✅", "อัตราสำเร็จ", f"{success_rate}%", rate_color, "เสถียร")}
+</div>
+""", unsafe_allow_html=True)
 
-st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-
-# ── Alerts ──
+# ── Alerts (CSS Grid 2 columns) ──
 if pending_slips > 0 or stuck_jobs > 0:
-    alert_cols = st.columns(2)
-    with alert_cols[0]:
-        if pending_slips > 0:
-            st.markdown(alert_card(
-                "🧾", f"{pending_slips} สลิปรอตรวจสอบ",
-                "ไปที่หน้า \"สลิปเติมเงิน\" เพื่อดำเนินการ",
-                style="warning", action_label="ตรวจสอบ →",
-            ), unsafe_allow_html=True)
-        else:
-            st.markdown(alert_card(
-                "✅", "ไม่มีสลิปรอตรวจสอบ", "สลิปทั้งหมดได้รับการดำเนินการแล้ว",
-                style="success",
-            ), unsafe_allow_html=True)
-    with alert_cols[1]:
-        if stuck_jobs > 0:
-            st.markdown(alert_card(
-                "⚠️", f"{stuck_jobs} งานค้าง (RESERVED > 2 ชม.)",
-                "ไปที่หน้า \"ตรวจสอบงาน\" เพื่อคืนเครดิต",
-                style="danger", action_label="จัดการ →",
-            ), unsafe_allow_html=True)
-        else:
-            st.markdown(alert_card(
-                "✅", "ไม่มีงานค้าง", "งานทั้งหมดทำงานปกติ",
-                style="success",
-            ), unsafe_allow_html=True)
+    alert_html = '<div class="ar">'
+    if pending_slips > 0:
+        alert_html += f"""
+        <div class="ac w">
+            <div class="ai">🧾</div>
+            <div class="at">
+                <div class="tt" style="color:#fbbf24">{pending_slips} สลิปรอตรวจสอบ</div>
+                <div class="ds">ไปที่หน้า "สลิปเติมเงิน" เพื่อดำเนินการ</div>
+            </div>
+            <span class="ab">ดูสลิป →</span>
+        </div>"""
+    if stuck_jobs > 0:
+        alert_html += f"""
+        <div class="ac d">
+            <div class="ai">⚠️</div>
+            <div class="at">
+                <div class="tt" style="color:#f87171">{stuck_jobs} งานค้าง (RESERVED)</div>
+                <div class="ds">งานหมดอายุ — คืนเครดิตให้ผู้ใช้</div>
+            </div>
+            <span class="ab">ดูงาน →</span>
+        </div>"""
+    alert_html += '</div>'
+    st.markdown(alert_html, unsafe_allow_html=True)
 else:
-    st.markdown(alert_card(
-        "✅", "ระบบทำงานปกติ",
-        "ไม่มีรายการรอดำเนินการ",
-        style="success",
-    ), unsafe_allow_html=True)
+    st.markdown("""
+    <div class="ar">
+        <div class="ac s">
+            <div class="ai">✅</div>
+            <div class="at">
+                <div class="tt" style="color:#34d399">ระบบทำงานปกติ</div>
+                <div class="ds">ไม่มีรายการรอดำเนินการ</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-
-# ── Charts ──
+# ── Charts (use st.columns for Plotly, but wrap in card styling) ──
 revenue_data, user_data = load_daily_reports()
 
 col_left, col_right = st.columns(2)
 with col_left:
-    st.markdown(chart_card("💰 รายได้ (30 วันล่าสุด)"), unsafe_allow_html=True)
+    st.markdown("""
+    <div style="background:#1a2035;border:1px solid #1e293b;border-radius:14px;padding:20px 24px 8px 24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span style="font-weight:700;font-size:1rem">💰 รายได้ (30 วันล่าสุด)</span>
+            <span style="font-size:.75rem;color:#64748b;padding:4px 10px;background:#0f1629;border-radius:8px;border:1px solid #1e293b">30 วัน</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.plotly_chart(revenue_chart(revenue_data), use_container_width=True)
 
 with col_right:
-    st.markdown(chart_card("👥 ผู้ใช้ใหม่ (30 วันล่าสุด)"), unsafe_allow_html=True)
+    st.markdown("""
+    <div style="background:#1a2035;border:1px solid #1e293b;border-radius:14px;padding:20px 24px 8px 24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span style="font-weight:700;font-size:1rem">👥 ผู้ใช้ใหม่ (30 วันล่าสุด)</span>
+            <span style="font-size:.75rem;color:#64748b;padding:4px 10px;background:#0f1629;border-radius:8px;border:1px solid #1e293b">30 วัน</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.plotly_chart(user_growth_chart(user_data), use_container_width=True)

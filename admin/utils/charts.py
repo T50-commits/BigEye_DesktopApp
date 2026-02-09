@@ -71,7 +71,7 @@ def user_growth_chart(data: list[dict]) -> go.Figure:
 def _base_layout() -> dict:
     return dict(
         template="plotly_dark",
-        height=200,
+        height=220,
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
