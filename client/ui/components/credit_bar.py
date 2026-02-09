@@ -186,7 +186,7 @@ class CreditBar(QWidget):
         layout.addWidget(self.btn_refresh)
 
         # History chip
-        self.btn_history = self._make_chip("ประวัติ")
+        self.btn_history = self._make_chip("History")
         self.btn_history.clicked.connect(self.history_clicked.emit)
         layout.addWidget(self.btn_history)
 

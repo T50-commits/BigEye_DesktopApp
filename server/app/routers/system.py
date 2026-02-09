@@ -108,7 +108,7 @@ async def cleanup_expired_jobs():
                 "amount": reserved,
                 "balance_after": balance,
                 "reference_id": job.get("job_token", ""),
-                "description": f"Auto-refund expired job ({reserved} credits)",
+                "description": f"คืนเครดิตอัตโนมัติ — งานหมดอายุ ({reserved} เครดิต)",
                 "created_at": now,
             })
 

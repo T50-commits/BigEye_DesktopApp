@@ -166,7 +166,7 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
         "amount": -total_cost,
         "balance_after": new_balance,
         "reference_id": job_token,
-        "description": f"Reserve {req.file_count} files ({req.mode})",
+        "description": f"จองเครดิต {req.file_count} ไฟล์ ({req.mode})",
         "created_at": now,
     })
 
@@ -329,7 +329,7 @@ async def finalize_job(req: FinalizeJobRequest, user: dict = Depends(get_current
             "amount": refund,
             "balance_after": new_balance,
             "reference_id": req.job_token,
-            "description": f"Refund {refund} credits ({req.failed} failed files)",
+            "description": f"คืนเครดิต {refund} เครดิต ({req.failed} ไฟล์ล้มเหลว)",
             "created_at": now,
         })
     else:

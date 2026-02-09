@@ -323,9 +323,9 @@ def process_topup_with_promo(
     })
 
     # Transaction description
-    desc = f"Top-up {int(topup_baht)} THB → {total_credits} credits"
+    desc = f"เติมเงิน {int(topup_baht)} บาท → {total_credits} เครดิต"
     if applied_promo:
-        desc += f" (incl. {bonus_credits} bonus from '{applied_promo['name']}')"
+        desc += f" (รวมโบนัส {bonus_credits} จาก '{applied_promo['name']}')"
 
     # Create transaction record
     tx_ref = transactions_ref().add({
