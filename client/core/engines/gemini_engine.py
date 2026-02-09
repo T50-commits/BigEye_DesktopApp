@@ -55,6 +55,8 @@ def classify_error(exc: Exception) -> GeminiError:
         return GeminiError(str(exc), GeminiErrorType.SAFETY, retryable=False)
     elif "timeout" in msg or "deadline" in msg:
         return GeminiError(str(exc), GeminiErrorType.TIMEOUT, retryable=True)
+    elif "ssl" in msg or "wrong_version_number" in msg or "certificate" in msg:
+        return GeminiError(str(exc), GeminiErrorType.TIMEOUT, retryable=True)
     elif "api_key" in msg or "invalid" in msg and "key" in msg or "401" in msg:
         return GeminiError(str(exc), GeminiErrorType.INVALID_KEY, retryable=False)
     elif "not found" in msg and "model" in msg or "404" in msg:
@@ -224,8 +226,19 @@ class GeminiEngine:
     def _upload_video(self, filepath: str):
         """Upload video to Gemini File API and wait for processing."""
         logger.info(f"Uploading video: {os.path.basename(filepath)}")
-        with self._api_sem:
-            video_file = genai.upload_file(filepath)
+        max_upload_retries = 3
+        for attempt in range(1, max_upload_retries + 1):
+            try:
+                with self._api_sem:
+                    video_file = genai.upload_file(filepath)
+                break
+            except Exception as e:
+                msg = str(e).lower()
+                if ("ssl" in msg or "wrong_version_number" in msg) and attempt < max_upload_retries:
+                    logger.warning(f"Video upload SSL error (attempt {attempt}): {e}")
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
 
         # Wait for video to be processed (ACTIVE state)
         max_wait = 120  # seconds

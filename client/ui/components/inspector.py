@@ -169,7 +169,9 @@ class Inspector(QWidget):
         el.setContentsMargins(0, 0, 0, 0)
         el.setSpacing(6)
 
-        el.addWidget(self._make_label("Title"))
+        self.title_label = QLabel("Title")
+        self.title_label.setStyleSheet("color: #8892A8; font-size: 11px;")
+        el.addWidget(self.title_label)
         self.title_edit = QTextEdit()
         self.title_edit.setFixedHeight(56)  # ~2 lines at 12px font
         self.title_edit.setAcceptRichText(False)
@@ -182,7 +184,9 @@ class Inspector(QWidget):
         """)
         el.addWidget(self.title_edit)
 
-        el.addWidget(self._make_label("Description"))
+        self.desc_label = QLabel("Description")
+        self.desc_label.setStyleSheet("color: #8892A8; font-size: 11px;")
+        el.addWidget(self.desc_label)
         self.desc_edit = QTextEdit()
         self.desc_edit.setMinimumHeight(100)
         el.addWidget(self.desc_edit, 1)
@@ -270,8 +274,12 @@ class Inspector(QWidget):
         if status == "completed" or status == "success":
             self.status_label.hide()
             self.edit_container.show()
-            self.title_edit.setPlainText(result.get("title", ""))
-            self.desc_edit.setPlainText(result.get("description", ""))
+            title_text = result.get("title", "")
+            desc_text = result.get("description", "")
+            self.title_edit.setPlainText(title_text)
+            self.title_label.setText(f"Title ({len(title_text)})")
+            self.desc_edit.setPlainText(desc_text)
+            self.desc_label.setText(f"Description ({len(desc_text)})")
             kw = result.get("keywords", [])
             if isinstance(kw, list):
                 kw = ", ".join(kw)
@@ -279,6 +287,8 @@ class Inspector(QWidget):
             count = len([k for k in kw.split(",") if k.strip()]) if kw else 0
             self.keywords_label.setText(f"Keywords ({count})")
         elif status == "processing":
+            self.title_label.setText("Title")
+            self.desc_label.setText("Description")
             self.edit_container.hide()
             self.status_label.setText("Processing...")
             self.status_label.setStyleSheet("color: #FEB019; font-size: 12px; padding: 8px;")

@@ -24,11 +24,10 @@ logger = logging.getLogger("bigeye-api")
 router = APIRouter(prefix="/job", tags=["Job"])
 
 
-def _get_credit_rates(mode: str) -> tuple[int, int]:
+def _get_credit_rates(mode: str, sys_config: dict | None = None) -> tuple[int, int]:
     """
     Get credit rates (photo_rate, video_rate) for a platform.
-    Reads from Firestore system_config/app_settings first,
-    falls back to env config if Firestore unavailable.
+    Uses pre-loaded sys_config if provided, otherwise reads from Firestore.
     Returns (photo_rate, video_rate).
     """
     mode_lower = mode.lower()
@@ -50,17 +49,22 @@ def _get_credit_rates(mode: str) -> tuple[int, int]:
         fs_photo_key = "istock_photo"
         fs_video_key = "istock_video"
 
-    # Try Firestore app_settings (admin-editable)
-    try:
-        doc = system_config_ref().document("app_settings").get()
-        if doc.exists:
-            rates = doc.to_dict().get("credit_rates", {})
-            return (
-                rates.get(fs_photo_key, fb_photo),
-                rates.get(fs_video_key, fb_video),
-            )
-    except Exception as e:
-        logger.warning(f"Failed to read credit_rates from Firestore: {e}")
+    # Use pre-loaded config or read from Firestore
+    config = sys_config
+    if config is None:
+        try:
+            doc = system_config_ref().document("app_settings").get()
+            if doc.exists:
+                config = doc.to_dict()
+        except Exception as e:
+            logger.warning(f"Failed to read credit_rates from Firestore: {e}")
+
+    if config:
+        rates = config.get("credit_rates", {})
+        return (
+            rates.get(fs_photo_key, fb_photo),
+            rates.get(fs_video_key, fb_video),
+        )
 
     return (fb_photo, fb_video)
 
@@ -78,8 +82,12 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
     if user.get("status") != "active":
         raise HTTPException(status_code=403, detail="Account is not active")
 
+    # Load system config ONCE for rates + prompts + blacklist
+    config_doc = system_config_ref().document("app_settings").get()
+    sys_config = config_doc.to_dict() if config_doc.exists else {}
+
     # Calculate cost with separate photo/video rates
-    photo_rate, video_rate = _get_credit_rates(req.mode)
+    photo_rate, video_rate = _get_credit_rates(req.mode, sys_config)
     photos = req.photo_count
     videos = req.video_count
     # If client didn't send photo/video breakdown, treat all as photo
@@ -162,15 +170,13 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
         "created_at": now,
     })
 
-    # Load system config for prompts + blacklist + dictionary
-    config_doc = system_config_ref().document("app_settings").get()
+    # Use pre-loaded system config for prompts + blacklist + dictionary
     encrypted_config = ""
     dictionary = ""
     blacklist = []
     cache_threshold = 20
 
-    if config_doc.exists:
-        sys_config = config_doc.to_dict()
+    if sys_config:
         blacklist = sys_config.get("blacklist", [])
         cache_threshold = sys_config.get("context_cache_threshold", 20)
 

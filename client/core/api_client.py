@@ -80,7 +80,7 @@ class APIClient:
     def __init__(self, base_url: str = API_BASE_URL):
         self._client = httpx.Client(
             base_url=base_url,
-            timeout=30.0,
+            timeout=60.0,
             headers={"Content-Type": "application/json"},
         )
         self._token = ""

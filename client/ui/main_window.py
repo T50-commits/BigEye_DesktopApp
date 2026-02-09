@@ -347,6 +347,7 @@ class MainWindow(QMainWindow):
         self._job_manager.job_completed.connect(self._on_job_completed)
         self._job_manager.job_failed.connect(self._on_job_failed)
         self._job_manager.credit_updated.connect(self.credit_bar.set_balance)
+        self._job_manager.status_update.connect(self._on_status_update)
 
         # Build settings dict for JobManager
         settings = self.sidebar.get_settings()
@@ -420,6 +421,11 @@ class MainWindow(QMainWindow):
         )
         dialog.exec()
 
+    def _on_status_update(self, message: str):
+        """Handle step-by-step status updates from JobManager."""
+        self.gallery.progress_text.setText(message)
+        self.status_bar.showMessage(message)
+
     def _on_job_failed(self, error_message: str):
         """Handle job failure from JobManager."""
         self._is_processing = False
@@ -439,6 +445,7 @@ class MainWindow(QMainWindow):
             self._job_manager.job_completed.disconnect(self._on_job_completed)
             self._job_manager.job_failed.disconnect(self._on_job_failed)
             self._job_manager.credit_updated.disconnect(self.credit_bar.set_balance)
+            self._job_manager.status_update.disconnect(self._on_status_update)
         except RuntimeError:
             pass
 
