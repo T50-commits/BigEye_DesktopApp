@@ -38,6 +38,9 @@ def scan_folder(folder_path: str) -> list:
         return []
     files = []
     for fname in sorted(os.listdir(folder_path)):
+        # Skip macOS hidden/resource-fork files (._xxx, .DS_Store, etc.)
+        if fname.startswith("."):
+            continue
         fpath = os.path.join(folder_path, fname)
         if os.path.isfile(fpath) and is_supported_file(fpath):
             files.append(fpath)
