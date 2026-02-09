@@ -9,6 +9,7 @@ from google.cloud.firestore_v1 import FieldFilter
 
 from utils.firestore_client import users_ref, transactions_ref, jobs_ref
 from utils.theme import inject_css
+from utils.timezone import to_local, fmt_datetime, fmt_date
 
 inject_css()
 st.header("👥 ผู้ใช้งาน")
@@ -119,7 +120,7 @@ def format_time_ago(dt) -> str:
             return f"{minutes} นาทีก่อน"
     except Exception:
         pass
-    return str(dt)
+    return fmt_datetime(dt) if hasattr(dt, 'strftime') else str(dt)
 
 
 # ── Search bar ──
@@ -179,9 +180,7 @@ if selected_rows:
         st.markdown(f"**สถานะ:** {user.get('status', 'active')}")
     with col3:
         created = user.get("created_at", "—")
-        if hasattr(created, "strftime"):
-            created = created.strftime("%Y-%m-%d")
-        st.markdown(f"**สมัครเมื่อ:** {created}")
+        st.markdown(f"**สมัครเมื่อ:** {fmt_date(created) if hasattr(created, 'strftime') else created}")
         st.markdown(f"**เข้าสู่ระบบล่าสุด:** {format_time_ago(user.get('last_login'))}")
         st.markdown(f"**เวอร์ชันแอป:** {user.get('app_version', '—')}")
 
@@ -272,11 +271,10 @@ if selected_rows:
             tx_table = []
             for t in txns:
                 created = t.get("created_at", "")
-                if hasattr(created, "strftime"):
-                    created = created.strftime("%Y-%m-%d %H:%M")
+                created_str = fmt_datetime(created) if hasattr(created, 'strftime') else str(created)
                 amount = t.get("amount", 0)
                 tx_table.append({
-                    "วันที่": created,
+                    "วันที่": created_str,
                     "รายการ": t.get("description", t.get("type", "—")),
                     "จำนวน": f"{'+' if amount > 0 else ''}{amount:,}",
                     "คงเหลือ": f"{t.get('balance_after', '—'):,}" if isinstance(t.get('balance_after'), (int, float)) else "—",
@@ -291,13 +289,12 @@ if selected_rows:
             job_table = []
             for j in user_jobs:
                 created = j.get("created_at", "")
-                if hasattr(created, "strftime"):
-                    created = created.strftime("%Y-%m-%d %H:%M")
+                created_str = fmt_datetime(created) if hasattr(created, 'strftime') else str(created)
                 job_table.append({
                     "Token": j.get("job_token", j.get("id", ""))[:12] + "...",
                     "โหมด": j.get("mode", "—"),
                     "ไฟล์": j.get("file_count", 0),
                     "สถานะ": j.get("status", "—"),
-                    "สร้างเมื่อ": created,
+                    "สร้างเมื่อ": created_str,
                 })
             st.dataframe(pd.DataFrame(job_table), use_container_width=True, hide_index=True)

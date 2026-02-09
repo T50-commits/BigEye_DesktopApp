@@ -10,6 +10,7 @@ from google.cloud.firestore_v1 import FieldFilter
 
 from utils.firestore_client import slips_ref, users_ref, transactions_ref
 from utils.theme import inject_css
+from utils.timezone import fmt_datetime, fmt_full
 
 inject_css()
 st.header("🧾 สลิปเติมเงิน")
@@ -117,7 +118,7 @@ table_data = []
 for s in slips:
     created = s.get("created_at", "")
     if hasattr(created, "strftime"):
-        created = created.strftime("%d/%m %H:%M")
+        created = fmt_datetime(created, "%d/%m %H:%M")
     table_data.append({
         "วันที่": created,
         "ผู้ใช้": s.get("email", s.get("user_id", "—")[:12]),
@@ -172,7 +173,7 @@ if selected_rows:
 
         created = slip.get("created_at", "—")
         if hasattr(created, "strftime"):
-            created = created.strftime("%Y-%m-%d %H:%M:%S")
+            created = fmt_full(created)
         st.markdown(f"**ส่งเมื่อ:** {created}")
 
         st.markdown(f"**สถานะ:** {slip.get('status', '—')}")

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from utils.firestore_client import promotions_ref, promo_redemptions_ref, users_ref
 from utils.theme import inject_css
+from utils.timezone import fmt_datetime
 
 inject_css()
 st.header("🎁 โปรโมชั่น")
@@ -51,7 +52,7 @@ def format_date(dt) -> str:
     if not dt:
         return "—"
     if hasattr(dt, "strftime"):
-        return dt.strftime("%Y-%m-%d %H:%M")
+        return fmt_datetime(dt)
     return str(dt)
 
 

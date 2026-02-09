@@ -9,6 +9,7 @@ from google.cloud.firestore_v1 import FieldFilter
 
 from utils.firestore_client import jobs_ref, users_ref, transactions_ref
 from utils.theme import inject_css
+from utils.timezone import fmt_datetime, fmt_full
 
 inject_css()
 st.header("⚙️ ตรวจสอบงาน")
@@ -112,7 +113,7 @@ def format_time_ago(dt) -> str:
             return f"{minutes} นาทีก่อน"
     except Exception:
         pass
-    return str(dt)
+    return fmt_datetime(dt) if hasattr(dt, 'strftime') else str(dt)
 
 
 # ── Filter ──
@@ -206,7 +207,7 @@ if selected_rows:
 
     created = job.get("created_at", "")
     if hasattr(created, "strftime"):
-        st.markdown(f"**สร้างเมื่อ:** {created.strftime('%Y-%m-%d %H:%M:%S')}")
+        st.markdown(f"**สร้างเมื่อ:** {fmt_full(created)}")
 
     if job.get("status") == "RESERVED":
         st.divider()

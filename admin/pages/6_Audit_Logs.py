@@ -9,6 +9,7 @@ from google.cloud.firestore_v1 import FieldFilter
 
 from utils.firestore_client import audit_logs_ref, users_ref
 from utils.theme import inject_css
+from utils.timezone import fmt_full
 
 inject_css()
 st.header("📋 บันทึกระบบ")
@@ -144,7 +145,7 @@ st.caption(f"แสดง {len(logs)} รายการ")
 for i, log in enumerate(logs):
     ts = log.get("created_at", "")
     if hasattr(ts, "strftime"):
-        ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
+        ts_str = fmt_full(ts)
     else:
         ts_str = str(ts)
 
