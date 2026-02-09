@@ -334,9 +334,9 @@ class MainWindow(QMainWindow):
 
         # Show immediate feedback: indeterminate progress + "Preparing..."
         self.gallery.progress_bar.setMaximum(0)  # indeterminate animation
-        self.gallery.progress_text.setText("Preparing... Reserving credits")
+        self.gallery.progress_text.setText("Checking credits...")
         self.gallery.progress_percent.setText("")
-        self.status_bar.showMessage(f"Reserving {len(file_list)} files...")
+        self.status_bar.showMessage(f"Checking credits... ({len(file_list)} files)")
 
         # Fresh JobManager each run to avoid dead-thread affinity issues
         self._job_manager = JobManager()

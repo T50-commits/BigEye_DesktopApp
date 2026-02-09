@@ -89,7 +89,7 @@ class JobManager(QObject):
 
         try:
             # ── Step 1: Reserve job with backend ──
-            self.status_update.emit("Verifying credits...")
+            self.status_update.emit("Checking credits...")
             logger.info(f"Reserving job: {len(files)} files ({img_count}p+{vid_count}v), {platform}")
             reserve_data = api.reserve_job(
                 file_count=len(files),
@@ -104,7 +104,7 @@ class JobManager(QObject):
             encrypted_config = reserve_data.get("config", "")
             concurrency = reserve_data.get("concurrency", {})
 
-            self.status_update.emit("Preparing configuration...")
+            self.status_update.emit("Preparing files...")
 
             # ── Step 2: Decrypt prompt with AES ──
             if encrypted_config:
@@ -125,7 +125,7 @@ class JobManager(QObject):
                 self._copyright_guard.initialize(blacklist)
                 self._keyword_processor.set_blacklist(set(blacklist))
 
-            self.status_update.emit("Setting up processing engine...")
+            self.status_update.emit("Setting up engine...")
 
             # ── Step 4: Set concurrency limits ──
             max_img = concurrency.get("image", 5)
@@ -139,7 +139,7 @@ class JobManager(QObject):
             # ── Step 6: Create context cache if large job ──
             cache_threshold = reserve_data.get("cache_threshold", CACHE_THRESHOLD)
             if len(files) >= cache_threshold and self._prompt_template:
-                self.status_update.emit("Optimizing for large batch...")
+                self.status_update.emit("Optimizing batch...")
                 self._engine.create_cache(self._prompt_template)
 
             # ── Step 7: Create video proxies ──
@@ -153,7 +153,7 @@ class JobManager(QObject):
             )
 
             # ── Step 9: Start processing via QueueManager ──
-            self.status_update.emit("Starting processing...")
+            self.status_update.emit("Processing...")
             self._is_running = True
             self._queue.start_queue(files, self._process_file)
 
@@ -222,7 +222,7 @@ class JobManager(QObject):
 
             if is_video(filepath):
                 # Create proxy for video
-                self.status_update.emit(f"Uploading video: {filename}")
+                self.status_update.emit(f"Uploading / Processing: {filename}")
                 proxy = Transcoder.create_proxy(filepath)
                 process_path = proxy if proxy else filepath
                 result = self._engine.process_video(process_path, prompt)
