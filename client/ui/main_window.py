@@ -546,9 +546,46 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def _do_export_csv(self):
-        """Perform actual CSV export."""
-        # TODO: Implement CSV export logic
-        self.status_bar.showMessage("CSV exported successfully")
+        """Perform actual CSV re-export with user-chosen directory."""
+        from PySide6.QtWidgets import QFileDialog
+        from core.data.csv_exporter import CSVExporter
+
+        if not self._results:
+            self.status_bar.showMessage("No results to export")
+            return
+
+        # Default to the current gallery folder
+        default_dir = self.gallery.get_folder_path() or ""
+
+        save_dir = QFileDialog.getExistingDirectory(
+            self, "Choose export folder", default_dir
+        )
+        if not save_dir:
+            return  # User cancelled
+
+        settings = self.sidebar.get_settings()
+        platform = settings.get("platform", "iStock")
+        model = settings.get("model", "gemini-2.5-pro")
+        keyword_style = settings.get("keyword_style", "")
+
+        # Shorten style name for filename (same logic as JobManager)
+        if keyword_style.lower().startswith("single"):
+            style_tag = "Single"
+        elif "hybrid" in keyword_style.lower():
+            style_tag = "Hybrid"
+        else:
+            style_tag = ""
+
+        csv_files = CSVExporter.export_for_platform(
+            platform, self._results, save_dir, model, style_tag,
+        )
+
+        if csv_files:
+            names = [os.path.basename(f) for f in csv_files]
+            self.status_bar.showMessage(f"CSV exported: {', '.join(names)}")
+            logger.info(f"Re-export CSV: {csv_files}")
+        else:
+            self.status_bar.showMessage("No successful results to export")
 
     def _on_save_api_key(self, key: str):
         """Save API key to system keyring."""
