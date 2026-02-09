@@ -14,7 +14,7 @@ class InsufficientDialog(QDialog):
 
     def __init__(self, required: int, available: int, rate: int, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("เครดิตไม่เพียงพอ")
+        self.setWindowTitle("Insufficient Credits")
         self.setFixedWidth(420)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
         self._max_files = available // rate
@@ -25,7 +25,7 @@ class InsufficientDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        title = QLabel("\u26A0\uFE0F เครดิตไม่เพียงพอ")
+        title = QLabel("\u26A0\uFE0F Insufficient Credits")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #FEB019;")
         layout.addWidget(title)
 
@@ -38,9 +38,9 @@ class InsufficientDialog(QDialog):
         il.setSpacing(6)
 
         for label, value, color in [
-            ("ต้องการ:", f"{format_number(required)} เครดิต", "#E8E8E8"),
-            ("คงเหลือ:", f"{format_number(available)} เครดิต", "#E8E8E8"),
-            ("ขาดอีก:", f"{format_number(required - available)} เครดิต", "#FF4560"),
+            ("Required:", f"{format_number(required)} credits", "#E8E8E8"),
+            ("Available:", f"{format_number(available)} credits", "#E8E8E8"),
+            ("Shortfall:", f"{format_number(required - available)} credits", "#FF4560"),
         ]:
             row = QHBoxLayout()
             lbl = QLabel(label)
@@ -56,7 +56,7 @@ class InsufficientDialog(QDialog):
         layout.addWidget(info)
 
         # Buttons
-        btn_topup = QPushButton("เติมเงิน")
+        btn_topup = QPushButton("Top Up")
         btn_topup.setObjectName("confirmButton")
         btn_topup.setMinimumHeight(40)
         btn_topup.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -64,13 +64,13 @@ class InsufficientDialog(QDialog):
         layout.addWidget(btn_topup)
 
         if self._max_files > 0:
-            btn_partial = QPushButton(f"ประมวลผล {self._max_files} ไฟล์ (บางส่วน)")
+            btn_partial = QPushButton(f"Process {self._max_files} files (partial)")
             btn_partial.setMinimumHeight(40)
             btn_partial.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_partial.clicked.connect(self._on_partial)
             layout.addWidget(btn_partial)
 
-        btn_cancel = QPushButton("ยกเลิก")
+        btn_cancel = QPushButton("Cancel")
         btn_cancel.setMinimumHeight(40)
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cancel.clicked.connect(self.reject)

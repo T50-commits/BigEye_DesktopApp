@@ -3,7 +3,7 @@ BigEye Pro — Credit Router
 GET /credit/balance, GET /credit/history, POST /credit/topup
 """
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud import firestore
@@ -88,7 +88,12 @@ async def get_history(
     for doc in docs:
         tx = doc.to_dict()
         created = tx.get("created_at")
-        date_str = created.strftime("%Y-%m-%d %H:%M") if created else ""
+        if created:
+            # Convert UTC → UTC+7 (Thailand)
+            local_dt = created.astimezone(timezone(timedelta(hours=7)))
+            date_str = local_dt.strftime("%Y-%m-%d %H:%M")
+        else:
+            date_str = ""
         items.append(TransactionItem(
             date=date_str,
             description=tx.get("description", ""),

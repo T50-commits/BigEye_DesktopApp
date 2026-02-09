@@ -30,7 +30,7 @@ class HistoryDialog(QDialog):
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["วันที่", "รายการ", "จำนวน"])
+        self.table.setHorizontalHeaderLabels(["Date", "Transaction", "Amount"])
         self.table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.ResizeToContents
         )
@@ -80,17 +80,17 @@ class HistoryDialog(QDialog):
         )
         bl = QHBoxLayout(bal_widget)
         bl.setContentsMargins(12, 4, 12, 4)
-        blbl = QLabel("คงเหลือ:")
+        blbl = QLabel("Balance:")
         blbl.setStyleSheet("color: #8892A8; font-size: 13px;")
         bl.addWidget(blbl)
         bl.addStretch()
-        bval = QLabel(f"{format_number(balance)} เครดิต")
+        bval = QLabel(f"{format_number(balance)} credits")
         bval.setStyleSheet("color: #FFD700; font-size: 14px; font-weight: 700;")
         bl.addWidget(bval)
         layout.addWidget(bal_widget)
 
         # Close
-        btn = QPushButton("ปิด")
+        btn = QPushButton("Close")
         btn.setMinimumHeight(40)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(self.accept)
