@@ -47,16 +47,13 @@ def classify_error(exc: Exception) -> GeminiError:
     """Classify a raw Gemini API exception into a GeminiError."""
     msg = str(exc).lower()
 
-    # HttpError 200 — Google API client lib bug (response parsing failure on success)
-    if "httperror" in msg and "200" in msg:
-        return GeminiError(str(exc), GeminiErrorType.UNKNOWN, retryable=True)
-    elif "rate" in msg and "limit" in msg or "429" in msg or "resource_exhausted" in msg:
+    if "rate" in msg and "limit" in msg or "429" in msg or "resource_exhausted" in msg:
         return GeminiError(str(exc), GeminiErrorType.RATE_LIMIT, retryable=True)
     elif "quota" in msg or "billing" in msg:
         return GeminiError(str(exc), GeminiErrorType.QUOTA, retryable=False)
     elif "safety" in msg or "blocked" in msg or "harm" in msg:
         return GeminiError(str(exc), GeminiErrorType.SAFETY, retryable=False)
-    elif "timeout" in msg or "deadline" in msg or "timed out" in msg:
+    elif "timeout" in msg or "deadline" in msg or "timed out" in msg or "read operation" in msg:
         return GeminiError(str(exc), GeminiErrorType.TIMEOUT, retryable=True)
     elif "ssl" in msg or "wrong_version_number" in msg or "certificate" in msg:
         return GeminiError(str(exc), GeminiErrorType.TIMEOUT, retryable=True)
@@ -237,27 +234,25 @@ class GeminiEngine:
                 break
             except Exception as e:
                 msg = str(e).lower()
-                if ("ssl" in msg or "wrong_version_number" in msg) and attempt < max_upload_retries:
-                    logger.warning(f"Video upload SSL error (attempt {attempt}): {e}")
+                # Retry on SSL errors, timeout errors, or connection errors
+                is_retryable = (
+                    "ssl" in msg or "wrong_version_number" in msg or
+                    "timeout" in msg or "timed out" in msg or "read operation" in msg or
+                    "connection" in msg or "network" in msg
+                )
+                if is_retryable and attempt < max_upload_retries:
+                    logger.warning(f"Video upload error (attempt {attempt}/{max_upload_retries}): {e}")
                     time.sleep(2 ** attempt)
                     continue
                 raise
 
         # Wait for video to be processed (ACTIVE state)
-        max_wait = 180  # seconds
+        max_wait = 120  # seconds
         elapsed = 0
         while video_file.state.name == "PROCESSING" and elapsed < max_wait:
-            time.sleep(3)
-            elapsed += 3
-            try:
-                video_file = genai.get_file(video_file.name)
-            except Exception as poll_err:
-                # Transient errors during polling (incl. HttpError 200) — retry
-                logger.warning(f"get_file poll error (elapsed {elapsed}s): {poll_err}")
-                if elapsed >= max_wait:
-                    raise
-                time.sleep(2)
-                continue
+            time.sleep(2)
+            elapsed += 2
+            video_file = genai.get_file(video_file.name)
 
         if video_file.state.name == "FAILED":
             raise GeminiError(
@@ -298,7 +293,7 @@ class GeminiEngine:
                 with self._api_sem:
                     response = model.generate_content(
                         contents,
-                        request_options={"timeout": (30, timeout)},
+                        request_options={"timeout": timeout},
                     )
 
                 # Check for blocked response
@@ -372,7 +367,9 @@ class GeminiEngine:
                 except json.JSONDecodeError:
                     pass
 
+            # Show more context in error message
+            preview = text[:300] if len(text) > 300 else text
             raise GeminiError(
-                f"Cannot parse JSON from response: {text[:200]}",
+                f"Cannot parse JSON from response. Preview: {preview}",
                 GeminiErrorType.UNKNOWN, retryable=False,
             )
