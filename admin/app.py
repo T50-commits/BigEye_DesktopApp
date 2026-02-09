@@ -24,89 +24,28 @@ st.set_page_config(
 )
 
 # ── Custom CSS ──
+from utils.theme import inject_css
+inject_css()
+
 st.markdown("""
 <style>
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0a1628 0%, #111d35 100%);
-    }
-    [data-testid="stSidebar"] * {
-        color: #c8d6e5 !important;
-    }
-    [data-testid="stSidebar"] .stButton button {
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.15);
-        color: #fff !important;
-        border-radius: 8px;
-        transition: background 0.2s;
-    }
-    [data-testid="stSidebar"] .stButton button:hover {
-        background: rgba(255,255,255,0.18);
-    }
-
-    /* Main */
-    .block-container { padding-top: 1.5rem; }
-
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 18px 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    }
-    [data-testid="stMetricValue"] { font-size: 1.6rem !important; font-weight: 700 !important; color: #1e293b !important; }
-    [data-testid="stMetricLabel"] { font-size: 0.85rem !important; color: #64748b !important; text-transform: uppercase; letter-spacing: 0.05em; }
-
-    /* Headers */
-    h1 { color: #0f172a !important; font-weight: 800 !important; }
-    h2 { color: #1e293b !important; }
-
-    /* Expanders */
-    [data-testid="stExpander"] {
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        margin-bottom: 8px;
-    }
-
-    /* Forms */
-    [data-testid="stForm"] {
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 20px;
-        background: #fafbfc;
-    }
-
-    /* Dataframe */
-    [data-testid="stDataFrame"] {
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 4px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px 8px 0 0;
-        padding: 8px 20px;
-    }
-
-    /* Nav card */
     .nav-card {
-        background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 20px;
+        background: #1a2035;
+        border: 1px solid #1e293b;
+        border-radius: 14px;
+        padding: 22px 20px;
         margin-bottom: 12px;
-        transition: transform 0.15s, box-shadow 0.15s;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
     }
     .nav-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        border-color: #334155;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }
-    .nav-card h3 { margin: 0 0 6px 0; font-size: 1.1rem; color: #1e293b; }
-    .nav-card p { margin: 0; color: #64748b; font-size: 0.9rem; }
+    .nav-card h3 { margin: 0 0 6px 0; font-size: 1.05rem; color: #f1f5f9; }
+    .nav-card p { margin: 0; color: #64748b; font-size: 0.85rem; }
 </style>
 """, unsafe_allow_html=True)
 

@@ -11,6 +11,7 @@ from utils.firestore_client import (
 )
 from utils.charts import revenue_chart, user_growth_chart
 from utils.theme import inject_css
+from utils.components import metric_card, alert_card, chart_card
 
 inject_css()
 st.header("📊 แดชบอร์ด")
@@ -174,103 +175,78 @@ with _top_right:
 stats = load_today_stats()
 pending_slips, stuck_jobs = load_pending_actions()
 
-# ── Custom metric card HTML ──
-
-def _metric_card(icon: str, label: str, value: str, color: str, sub: str = "") -> str:
-    sub_html = f'<div style="font-size:0.75rem;color:#94a3b8;margin-top:2px">{sub}</div>' if sub else ""
-    return f"""
-    <div style="
-        background:linear-gradient(135deg,#ffffff 0%,#f8fafc 100%);
-        border:1px solid #e2e8f0;
-        border-left:4px solid {color};
-        border-radius:12px;
-        padding:20px 18px;
-        height:100%;
-    ">
-        <div style="font-size:0.8rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">
-            {icon} {label}
-        </div>
-        <div style="font-size:2rem;font-weight:800;color:#0f172a;line-height:1.1">
-            {value}
-        </div>
-        {sub_html}
-    </div>
-    """
-
-# Row 1: Users + Revenue
+# Row 1: Metric Cards (4 columns)
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(_metric_card("👥", "ผู้ใช้งาน", str(stats["active_users"]), "#3b82f6", "ล็อกอินใน 24 ชม."), unsafe_allow_html=True)
+    st.markdown(metric_card("👥", "ผู้ใช้งาน", f"{stats['active_users']:,}", "#3b82f6", "ล็อกอินใน 24 ชม."), unsafe_allow_html=True)
 with c2:
-    st.markdown(_metric_card("🆕", "สมัครใหม่", str(stats["new_users"]), "#8b5cf6", "วันนี้"), unsafe_allow_html=True)
+    st.markdown(metric_card("🆕", "สมัครใหม่", str(stats["new_users"]), "#8b5cf6", "วันนี้"), unsafe_allow_html=True)
 with c3:
-    st.markdown(_metric_card("�", "รายรับ (เติมเงิน)", f"฿{stats['topup_thb']:,}", "#10b981", "เงินจริงที่ลูกค้าเติมวันนี้"), unsafe_allow_html=True)
+    st.markdown(metric_card("💰", "รายรับ", f"฿{stats['topup_thb']:,}", "#10b981", "เงินจริงที่ลูกค้าเติมวันนี้"), unsafe_allow_html=True)
 with c4:
-    st.markdown(_metric_card("📊", "รายได้รับรู้", f"฿{stats['recognized_thb']:,.2f}", "#0ea5e9", f"เครดิตที่ใช้ ÷ {stats['exchange_rate']} = บาท"), unsafe_allow_html=True)
+    st.markdown(metric_card("📊", "รายได้รับรู้", f"฿{stats['recognized_thb']:,.2f}", "#06b6d4", f"เครดิตที่ใช้ ÷ {stats['exchange_rate']} = บาท"), unsafe_allow_html=True)
 
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-# Row 2: Jobs
-c5, c6, c7, c8 = st.columns(4)
+# Row 2: Jobs (3 columns)
+c5, c6, c7 = st.columns(3)
 with c5:
-    st.markdown(_metric_card("⚙️", "งานทั้งหมด", str(stats["jobs"]), "#f59e0b", "วันนี้"), unsafe_allow_html=True)
+    st.markdown(metric_card("⚙️", "งานทั้งหมด", str(stats["jobs"]), "#f59e0b", "วันนี้"), unsafe_allow_html=True)
 with c6:
-    err_color = "#ef4444" if stats["errors"] > 0 else "#22c55e"
-    st.markdown(_metric_card("❌", "งานผิดพลาด", str(stats["errors"]), err_color, "วันนี้"), unsafe_allow_html=True)
+    err_color = "#ef4444" if stats["errors"] > 0 else "#10b981"
+    st.markdown(metric_card("❌", "งานผิดพลาด", str(stats["errors"]), err_color, "วันนี้"), unsafe_allow_html=True)
+with c7:
+    total = stats["jobs"]
+    success_rate = round(((total - stats["errors"]) / total * 100), 1) if total > 0 else 100
+    rate_color = "#10b981" if success_rate >= 95 else "#f59e0b" if success_rate >= 80 else "#ef4444"
+    st.markdown(metric_card("✅", "อัตราสำเร็จ", f"{success_rate}%", rate_color, f"{total - stats['errors']}/{total} งาน"), unsafe_allow_html=True)
 
-st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
 # ── Alerts ──
 if pending_slips > 0 or stuck_jobs > 0:
     alert_cols = st.columns(2)
     with alert_cols[0]:
         if pending_slips > 0:
-            st.markdown(f"""
-            <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px">
-                <span style="font-size:1.5rem">🧾</span>
-                <div>
-                    <div style="font-weight:700;color:#92400e">{pending_slips} สลิปรอตรวจสอบ</div>
-                    <div style="font-size:0.8rem;color:#a16207">ไปที่หน้า "สลิปเติมเงิน" เพื่อดำเนินการ</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(alert_card(
+                "🧾", f"{pending_slips} สลิปรอตรวจสอบ",
+                "ไปที่หน้า \"สลิปเติมเงิน\" เพื่อดำเนินการ",
+                style="warning", action_label="ตรวจสอบ →",
+            ), unsafe_allow_html=True)
+        else:
+            st.markdown(alert_card(
+                "✅", "ไม่มีสลิปรอตรวจสอบ", "สลิปทั้งหมดได้รับการดำเนินการแล้ว",
+                style="success",
+            ), unsafe_allow_html=True)
     with alert_cols[1]:
         if stuck_jobs > 0:
-            st.markdown(f"""
-            <div style="background:#fee2e2;border:1px solid #f87171;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px">
-                <span style="font-size:1.5rem">⚠️</span>
-                <div>
-                    <div style="font-weight:700;color:#991b1b">{stuck_jobs} งานค้าง (RESERVED)</div>
-                    <div style="font-size:0.8rem;color:#b91c1c">งานหมดอายุ — ไปที่หน้า "ตรวจสอบงาน" เพื่อคืนเครดิต</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            st.markdown(alert_card(
+                "⚠️", f"{stuck_jobs} งานค้าง (RESERVED > 2 ชม.)",
+                "ไปที่หน้า \"ตรวจสอบงาน\" เพื่อคืนเครดิต",
+                style="danger", action_label="จัดการ →",
+            ), unsafe_allow_html=True)
+        else:
+            st.markdown(alert_card(
+                "✅", "ไม่มีงานค้าง", "งานทั้งหมดทำงานปกติ",
+                style="success",
+            ), unsafe_allow_html=True)
 else:
-    st.markdown("""
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:1.5rem">✅</span>
-        <div style="font-weight:600;color:#166534">ไม่มีรายการรอดำเนินการ — ระบบทำงานปกติ</div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    st.markdown(alert_card(
+        "✅", "ระบบทำงานปกติ",
+        "ไม่มีรายการรอดำเนินการ",
+        style="success",
+    ), unsafe_allow_html=True)
+
+st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
 # ── Charts ──
 revenue_data, user_data = load_daily_reports()
 
 col_left, col_right = st.columns(2)
 with col_left:
-    st.markdown("""
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 18px 8px 18px;margin-bottom:8px">
-        <div style="font-weight:700;font-size:1rem;color:#1e293b;margin-bottom:4px">💰 รายได้ (30 วันล่าสุด)</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(chart_card("💰 รายได้ (30 วันล่าสุด)"), unsafe_allow_html=True)
     st.plotly_chart(revenue_chart(revenue_data), use_container_width=True)
 
 with col_right:
-    st.markdown("""
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 18px 8px 18px;margin-bottom:8px">
-        <div style="font-weight:700;font-size:1rem;color:#1e293b;margin-bottom:4px">👥 ผู้ใช้ใหม่ (30 วันล่าสุด)</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(chart_card("👥 ผู้ใช้ใหม่ (30 วันล่าสุด)"), unsafe_allow_html=True)
     st.plotly_chart(user_growth_chart(user_data), use_container_width=True)

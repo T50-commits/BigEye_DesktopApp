@@ -70,18 +70,18 @@ def user_growth_chart(data: list[dict]) -> go.Figure:
 
 def _base_layout() -> dict:
     return dict(
-        template="plotly_white",
-        height=320,
-        margin=dict(l=50, r=20, t=20, b=40),
+        template="plotly_dark",
+        height=200,
+        margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="sans-serif", size=12, color="#475569"),
+        font=dict(family="DM Sans, IBM Plex Sans Thai", size=12, color="#94a3b8"),
         xaxis=dict(
             showgrid=False,
             tickfont=dict(size=11, color="#94a3b8"),
         ),
         yaxis=dict(
-            gridcolor="rgba(226,232,240,0.6)",
+            gridcolor="rgba(255,255,255,0.04)",
             gridwidth=1,
             tickfont=dict(size=11, color="#94a3b8"),
         ),

@@ -12,85 +12,152 @@ def inject_css():
 
 _CSS = """
 <style>
-    /* Sidebar */
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700;800&display=swap');
+
+    :root {
+        --bg-primary: #080c16;
+        --bg-secondary: #0f1629;
+        --bg-card: #1a2035;
+        --bg-card-hover: #1e2642;
+        --bg-input: #0f1629;
+        --border: #1e293b;
+        --border-light: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        --accent-blue: #3b82f6;
+        --accent-cyan: #06b6d4;
+        --accent-green: #10b981;
+        --accent-yellow: #f59e0b;
+        --accent-red: #ef4444;
+        --accent-purple: #8b5cf6;
+        --accent-pink: #ec4899;
+        --accent-orange: #f97316;
+    }
+
+    body { font-family: 'DM Sans', 'IBM Plex Sans Thai', sans-serif; }
+    code, .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Hide Streamlit default elements */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+
+    /* Override sidebar */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0a1628 0%, #111d35 100%);
+        background: var(--bg-secondary);
+        border-right: 1px solid var(--border);
     }
-    [data-testid="stSidebar"] * {
-        color: #c8d6e5 !important;
-    }
+    [data-testid="stSidebar"] .css-1d391kg { padding-top: 1rem; }
     [data-testid="stSidebar"] .stButton button {
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.15);
-        color: #fff !important;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: var(--text-secondary) !important;
         border-radius: 8px;
-        transition: background 0.2s;
+        transition: all 0.2s;
     }
     [data-testid="stSidebar"] .stButton button:hover {
-        background: rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.12);
+        color: var(--text-primary) !important;
     }
 
-    /* Main */
-    .block-container { padding-top: 1.5rem; }
-
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 18px 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    }
-    [data-testid="stMetricValue"] {
-        font-size: 1.6rem !important;
-        font-weight: 700 !important;
-        color: #1e293b !important;
-    }
-    [data-testid="stMetricLabel"] {
-        font-size: 0.85rem !important;
-        color: #64748b !important;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+    /* Override main area */
+    .main .block-container {
+        padding: 2rem;
+        max-width: 1400px;
     }
 
-    /* Headers */
-    h1 { color: #0f172a !important; font-weight: 800 !important; }
-    h2 { color: #1e293b !important; }
+    /* Override dataframe */
+    [data-testid="stDataFrame"] {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+    }
 
-    /* Expanders */
+    /* Override buttons */
+    .stButton > button {
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .stButton > button[kind="primary"] {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: #2563eb;
+        box-shadow: 0 0 20px rgba(59,130,246,0.15);
+    }
+
+    /* Override inputs */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    .stSelectbox > div > div,
+    .stTextArea textarea {
+        background: var(--bg-input) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        color: var(--text-primary) !important;
+    }
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus {
+        border-color: var(--accent-blue) !important;
+        box-shadow: 0 0 0 1px var(--accent-blue) !important;
+    }
+
+    /* Override tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text-secondary);
+        padding: 8px 16px;
+    }
+    .stTabs [aria-selected="true"] {
+        background: var(--accent-blue) !important;
+        border-color: var(--accent-blue) !important;
+        color: white !important;
+    }
+
+    /* Override expander */
+    .streamlit-expanderHeader {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+    }
     [data-testid="stExpander"] {
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--border);
         border-radius: 10px;
         margin-bottom: 8px;
     }
 
-    /* Forms */
+    /* Override divider */
+    hr { border-color: var(--border) !important; }
+
+    /* Override metric */
+    [data-testid="stMetric"] {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+    }
+
+    /* Override forms */
     [data-testid="stForm"] {
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 20px;
-        background: #fafbfc;
+        background: var(--bg-card);
     }
 
-    /* Dataframe */
-    [data-testid="stDataFrame"] {
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] { gap: 4px; }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px 8px 0 0;
-        padding: 8px 20px;
-    }
-
-    /* Buttons — primary */
-    .stButton button[kind="primary"] {
-        border-radius: 8px;
-    }
-    .stButton button {
-        border-radius: 8px;
-    }
+    /* Headers */
+    h1 { color: var(--text-primary) !important; font-weight: 800 !important; }
+    h2 { color: var(--text-primary) !important; }
+    h3 { color: var(--text-primary) !important; }
 </style>
 """

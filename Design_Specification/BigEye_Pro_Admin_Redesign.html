@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BigEye Pro Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg0:#080c16;--bg1:#0f1629;--bg2:#1a2035;--bg3:#1e2642;
+--bdr:#1e293b;--bdr2:#334155;
+--t1:#f1f5f9;--t2:#94a3b8;--t3:#64748b;
+--blue:#3b82f6;--cyan:#06b6d4;--green:#10b981;--yellow:#f59e0b;
+--red:#ef4444;--purple:#8b5cf6;--pink:#ec4899;--orange:#f97316;
+--sidebar:260px;--header:64px;--r:14px;--rs:8px;
+}
+html{font-size:14px}
+body{font-family:'DM Sans','IBM Plex Sans Thai',sans-serif;background:var(--bg0);color:var(--t1);min-height:100vh;overflow-x:hidden}
+
+/* SIDEBAR */
+.sb{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar);background:var(--bg1);border-right:1px solid var(--bdr);display:flex;flex-direction:column;z-index:100}
+.sb-brand{height:var(--header);display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--bdr)}
+.sb-logo{width:36px;height:36px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;box-shadow:0 0 20px rgba(59,130,246,.15)}
+.sb-brand span{font-weight:700;font-size:1.1rem;background:linear-gradient(135deg,var(--blue),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sb-nav{flex:1;padding:16px 12px;overflow-y:auto}
+.sb-sec{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);padding:16px 12px 8px;font-weight:600}
+.ni{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;cursor:pointer;color:var(--t2);transition:all .2s;margin-bottom:2px;font-weight:500;font-size:.92rem;position:relative}
+.ni:hover{background:var(--bg2);color:var(--t1)}
+.ni.a{background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(6,182,212,.08));color:var(--blue);font-weight:600;box-shadow:inset 3px 0 0 var(--blue)}
+.ni .ic{font-size:1.15rem;width:24px;text-align:center}
+.ni .badge{position:absolute;right:12px;background:var(--red);color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px}
+.sb-ft{padding:16px;border-top:1px solid var(--bdr);display:flex;align-items:center;gap:10px}
+.sb-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--pink));display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#fff}
+.sb-ft .nm{font-size:.85rem;font-weight:600}
+.sb-ft .rl{font-size:.7rem;color:var(--t3)}
+
+/* MAIN */
+.mn{margin-left:var(--sidebar);min-height:100vh}
+.tb{height:var(--header);display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:1px solid var(--bdr);background:rgba(8,12,22,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50}
+.tb .pt{font-size:1.25rem;font-weight:700;display:flex;align-items:center;gap:10px}
+.tb .acts{display:flex;align-items:center;gap:12px}
+.btn-ref{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rs);background:var(--bg2);border:1px solid var(--bdr);color:var(--t2);cursor:pointer;font-size:.85rem;font-weight:500;transition:all .2s;font-family:inherit}
+.btn-ref:hover{border-color:var(--blue);color:var(--blue)}
+.clk{font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--t3)}
+.ct{padding:28px 32px}
+
+/* PAGES */
+.pg{display:none}.pg.on{display:block;animation:fu .4s ease}
+@keyframes fu{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* METRICS */
+.mg{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.mc{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:22px 20px;position:relative;overflow:hidden;transition:all .3s}
+.mc:hover{border-color:var(--bdr2);transform:translateY(-2px);box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.mc .gw{position:absolute;top:-30px;right:-30px;width:80px;height:80px;border-radius:50%;filter:blur(40px);opacity:.15}
+.mc .lb{font-size:.78rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-weight:600;display:flex;align-items:center;gap:8px}
+.mc .vl{font-size:2rem;font-weight:800;line-height:1.1;margin-bottom:4px}
+.mc .su{font-size:.75rem;color:var(--t3);display:flex;align-items:center;gap:4px}
+.tu{color:var(--green)}.td{color:var(--red)}
+
+/* ALERTS */
+.ar{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.ac{display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:var(--r);border:1px solid;transition:all .2s}
+.ac.w{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25)}
+.ac.d{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25)}
+.ac.s{background:rgba(16,185,129,.06);border-color:rgba(16,185,129,.2);grid-column:1/-1}
+.ac .ai{font-size:1.6rem}
+.ac .at .tt{font-weight:700;font-size:.95rem}
+.ac .at .ds{font-size:.78rem;color:var(--t3);margin-top:2px}
+.ac .ab{margin-left:auto;padding:6px 14px;border-radius:var(--rs);font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:var(--t2);transition:all .2s;font-family:inherit}
+.ac .ab:hover{background:rgba(255,255,255,.1);color:var(--t1)}
+
+/* CHARTS */
+.cr{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.cc{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:24px}
+.cc .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.cc .cht{font-weight:700;font-size:1rem}
+.cc .cp{font-size:.75rem;color:var(--t3);padding:4px 10px;background:var(--bg1);border-radius:var(--rs);border:1px solid var(--bdr)}
+.bc{display:flex;align-items:flex-end;gap:3px;height:160px;flex:1}
+.bcl{flex:1;border-radius:3px 3px 0 0;min-height:4px;transition:all .3s;cursor:pointer;position:relative}
+.bcl:hover{filter:brightness(1.3)}
+.bcl .tp{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--bg0);border:1px solid var(--bdr2);padding:5px 9px;border-radius:6px;font-size:.7rem;white-space:nowrap;z-index:10;font-family:'JetBrains Mono',monospace}
+.bcl:hover .tp{display:block}
+.clb{display:flex;gap:3px;padding-top:8px;font-size:.55rem;color:var(--t3)}
+.clb span{flex:1;text-align:center}
+
+/* TABLES */
+.ds{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:24px}
+.dh{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--bdr);flex-wrap:wrap;gap:12px}
+.dh .ti{font-weight:700;font-size:1rem;display:flex;align-items:center;gap:8px}
+.dh .tl{display:flex;gap:8px;flex-wrap:wrap}
+.fp{display:flex;gap:6px;flex-wrap:wrap}
+.pl{padding:6px 14px;border-radius:20px;font-size:.78rem;font-weight:500;cursor:pointer;border:1px solid var(--bdr);color:var(--t3);transition:all .2s;background:transparent;font-family:inherit}
+.pl:hover{border-color:var(--bdr2);color:var(--t2)}
+.pl.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.sx{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--rs);background:var(--bg1);border:1px solid var(--bdr);transition:border-color .2s}
+.sx:focus-within{border-color:var(--blue)}
+.sx input{background:transparent;border:none;outline:none;color:var(--t1);font-size:.85rem;width:180px;font-family:inherit}
+.sx input::placeholder{color:var(--t3)}
+table{width:100%;border-collapse:collapse}
+thead th{padding:12px 20px;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);font-weight:600;background:rgba(0,0,0,.2);border-bottom:1px solid var(--bdr)}
+tbody tr{border-bottom:1px solid var(--bdr);transition:background .15s;cursor:pointer}
+tbody tr:hover{background:var(--bg3)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:14px 20px;font-size:.88rem;color:var(--t2)}
+tbody td:first-child{color:var(--t1);font-weight:500}
+
+/* STATUS */
+.st{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
+.st.vr,.st.at,.st.cm{background:rgba(16,185,129,.12);color:#34d399}
+.st.pn,.st.rv{background:rgba(245,158,11,.12);color:#fbbf24}
+.st.rj,.st.fl,.st.sp{background:rgba(239,68,68,.12);color:#f87171}
+.st.ex{background:rgba(100,116,139,.12);color:#94a3b8}
+.st.dr{background:rgba(139,92,246,.12);color:#a78bfa}
+.sd{width:6px;height:6px;border-radius:50%;display:inline-block}
+.st.vr .sd,.st.at .sd,.st.cm .sd{background:#34d399}
+.st.pn .sd,.st.rv .sd{background:#fbbf24}
+.st.rj .sd,.st.fl .sd,.st.sp .sd{background:#f87171}
+.st.ex .sd{background:#94a3b8}
+.st.dr .sd{background:#a78bfa}
+
+/* PANEL */
+.dp{position:fixed;right:-520px;top:0;bottom:0;width:500px;background:var(--bg1);border-left:1px solid var(--bdr);z-index:200;transition:right .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.5)}
+.dp.op{right:0}
+.dp-h{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--bdr)}
+.dp-h h3{font-size:1.1rem;font-weight:700}
+.dp-x{width:32px;height:32px;border-radius:8px;background:var(--bg2);border:1px solid var(--bdr);color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:all .2s}
+.dp-x:hover{border-color:var(--red);color:var(--red)}
+.dp-b{flex:1;overflow-y:auto;padding:24px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:-1;opacity:0;transition:opacity .3s}
+.dp.op .ov{opacity:1}
+
+/* INFO GRID */
+.ig{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.ii{padding:14px 16px;background:var(--bg2);border-radius:var(--rs);border:1px solid var(--bdr)}
+.ii .il{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:4px;font-weight:600}
+.ii .iv{font-size:1rem;font-weight:600}
+.ii.fu{grid-column:1/-1}
+
+/* BUTTONS */
+.ag{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--bdr)}
+.bt{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:var(--rs);font-size:.85rem;font-weight:600;cursor:pointer;border:1px solid var(--bdr);transition:all .2s;font-family:inherit}
+.bt-p{background:var(--blue);border-color:var(--blue);color:#fff}
+.bt-p:hover{background:#2563eb;box-shadow:0 0 20px rgba(59,130,246,.15)}
+.bt-d{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#f87171}
+.bt-d:hover{background:rgba(239,68,68,.2)}
+.bt-s{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.3);color:#34d399}
+.bt-s:hover{background:rgba(16,185,129,.2)}
+.bt-g{background:transparent;border-color:var(--bdr);color:var(--t2)}
+.bt-g:hover{border-color:var(--bdr2);color:var(--t1)}
+.bt-w{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:#fbbf24}
+.bt-w:hover{background:rgba(245,158,11,.2)}
+
+/* CONFIG */
+.cg{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.ck{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:24px}
+.ck h4{font-size:.95rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:.78rem;color:var(--t3);margin-bottom:6px;font-weight:500}
+.fi{width:100%;padding:10px 14px;border-radius:var(--rs);background:var(--bg1);border:1px solid var(--bdr);color:var(--t1);font-size:.88rem;font-family:inherit;transition:border-color .2s}
+.fi:focus{outline:none;border-color:var(--blue)}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tg{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--bdr)}
+.tg:last-child{border-bottom:none}
+.tl-t{font-weight:600;font-size:.9rem}
+.tl-d{font-size:.75rem;color:var(--t3);margin-top:2px}
+.tw{width:44px;height:24px;border-radius:12px;background:var(--bdr);cursor:pointer;position:relative;transition:background .2s}
+.tw.on{background:var(--blue)}
+.tw .kn{width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:left .2s}
+.tw.on .kn{left:23px}
+.sn{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);font-weight:600;margin:16px 0 10px}
+
+/* LOG */
+.le{display:flex;align-items:flex-start;gap:14px;padding:16px 24px;border-bottom:1px solid var(--bdr);transition:background .15s;cursor:pointer}
+.le:hover{background:var(--bg3)}
+.ls{width:10px;height:10px;border-radius:50%;margin-top:6px;flex-shrink:0}
+.ls.i{background:var(--blue);box-shadow:0 0 8px rgba(59,130,246,.4)}
+.ls.w{background:var(--yellow);box-shadow:0 0 8px rgba(245,158,11,.4)}
+.ls.e{background:var(--red);box-shadow:0 0 8px rgba(239,68,68,.4)}
+.ls.c{background:var(--purple);box-shadow:0 0 8px rgba(124,58,237,.4)}
+.lb-e{font-weight:600;font-size:.9rem}
+.lm{font-size:.75rem;color:var(--t3);margin-top:3px;display:flex;gap:16px;flex-wrap:wrap}
+.lt{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--t3);white-space:nowrap;margin-top:2px}
+
+/* PROMOS */
+.prg{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.prc{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;transition:all .3s;cursor:pointer}
+.prc:hover{border-color:var(--bdr2);transform:translateY(-2px);box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.prb{height:8px;width:100%}
+.prbd{padding:20px}
+.prn{font-weight:700;font-size:1rem;margin-bottom:6px}
+.prt{font-size:.75rem;color:var(--t3);margin-bottom:12px}
+.prs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--bdr)}
+.ps{text-align:center}
+.ps .pv{font-weight:700;font-size:1.1rem}
+.ps .pp{font-size:.68rem;color:var(--t3)}
+
+/* MISC */
+.mono{font-family:'JetBrains Mono',monospace;font-size:.82rem;color:var(--cyan)}
+.am{font-family:'DM Sans',sans-serif;font-weight:700}
+.am.p{color:var(--green)}.am.n{color:var(--red)}
+.tg-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600;background:var(--bg1);border:1px solid var(--bdr);color:var(--t3)}
+.uc{display:flex;align-items:center;gap:10px}
+.ua{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;flex-shrink:0}
+
+/* STAGGER */
+.s1{animation:fu .5s ease .05s both}
+.s2{animation:fu .5s ease .1s both}
+.s3{animation:fu .5s ease .15s both}
+.s4{animation:fu .5s ease .2s both}
+.s5{animation:fu .5s ease .25s both}
+.s6{animation:fu .5s ease .3s both}
+
+/* SCROLL */
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--bdr2)}
+
+@media(max-width:1200px){.mg{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){.sb{transform:translateX(-100%)}.mn{margin-left:0}.mg{grid-template-columns:1fr}.cr{grid-template-columns:1fr}.cg{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sb">
+  <div class="sb-brand"><div class="sb-logo">B</div><span>BigEye Pro</span></div>
+  <nav class="sb-nav">
+    <div class="sb-sec">หลัก</div>
+    <div class="ni a" data-p="dashboard"><span class="ic">📊</span> แดชบอร์ด</div>
+    <div class="ni" data-p="users"><span class="ic">👥</span> ผู้ใช้งาน</div>
+    <div class="ni" data-p="slips"><span class="ic">🧾</span> สลิปเติมเงิน<span class="badge">3</span></div>
+    <div class="ni" data-p="jobs"><span class="ic">⚙️</span> ตรวจสอบงาน</div>
+    <div class="sb-sec">จัดการ</div>
+    <div class="ni" data-p="config"><span class="ic">🔧</span> ตั้งค่าระบบ</div>
+    <div class="ni" data-p="audit"><span class="ic">📋</span> บันทึกระบบ</div>
+    <div class="ni" data-p="promos"><span class="ic">🎁</span> โปรโมชั่น</div>
+  </nav>
+  <div class="sb-ft"><div class="sb-av">A</div><div><div class="nm">Admin</div><div class="rl">Super Administrator</div></div></div>
+</aside>
+
+<!-- MAIN -->
+<div class="mn">
+<div class="tb">
+  <div class="pt" id="pt">📊 แดชบอร์ด</div>
+  <div class="acts"><div class="clk" id="clk"></div><button class="btn-ref" onclick="location.reload()">🔄 รีเฟรช</button></div>
+</div>
+<div class="ct">
+
+<!-- ═══ DASHBOARD ═══ -->
+<div class="pg on" id="pg-dashboard">
+  <div class="mg">
+    <div class="mc s1"><div class="gw" style="background:var(--blue)"></div><div class="lb">👥 ผู้ใช้งาน</div><div class="vl" style="color:var(--blue)">1,247</div><div class="su"><span class="tu">↑ 12%</span> ล็อกอินใน 24 ชม.</div></div>
+    <div class="mc s2"><div class="gw" style="background:var(--purple)"></div><div class="lb">🆕 สมัครใหม่</div><div class="vl" style="color:var(--purple)">38</div><div class="su"><span class="tu">↑ 5</span> วันนี้</div></div>
+    <div class="mc s3"><div class="gw" style="background:var(--green)"></div><div class="lb">💰 รายรับ (เติมเงิน)</div><div class="vl" style="color:var(--green)">฿47,350</div><div class="su">เงินจริงที่ลูกค้าเติมวันนี้</div></div>
+    <div class="mc s4"><div class="gw" style="background:var(--cyan)"></div><div class="lb">📊 รายได้รับรู้</div><div class="vl" style="color:var(--cyan)">฿12,800</div><div class="su">เครดิตที่ใช้ ÷ 4 = บาท</div></div>
+  </div>
+  <div class="mg" style="grid-template-columns:repeat(3,1fr)">
+    <div class="mc s5"><div class="gw" style="background:var(--yellow)"></div><div class="lb">⚙️ งานทั้งหมด</div><div class="vl" style="color:var(--yellow)">892</div><div class="su">วันนี้</div></div>
+    <div class="mc s5"><div class="gw" style="background:var(--red)"></div><div class="lb">❌ งานผิดพลาด</div><div class="vl" style="color:var(--red)">4</div><div class="su"><span class="td">0.4%</span> error rate</div></div>
+    <div class="mc s6"><div class="gw" style="background:var(--green)"></div><div class="lb">✅ อัตราสำเร็จ</div><div class="vl" style="color:var(--green)">99.6%</div><div class="su">เสถียร</div></div>
+  </div>
+
+  <div class="ar s5">
+    <div class="ac w"><div class="ai">🧾</div><div class="at"><div class="tt" style="color:#fbbf24">3 สลิปรอตรวจสอบ</div><div class="ds">ไปที่หน้า "สลิปเติมเงิน" เพื่อดำเนินการ</div></div><button class="ab" onclick="nav('slips')">ดูสลิป →</button></div>
+    <div class="ac d"><div class="ai">⚠️</div><div class="at"><div class="tt" style="color:#f87171">1 งานค้าง (RESERVED)</div><div class="ds">งานหมดอายุ — คืนเครดิตให้ผู้ใช้</div></div><button class="ab" onclick="nav('jobs')">ดูงาน →</button></div>
+  </div>
+
+  <div class="cr s6">
+    <div class="cc"><div class="ch"><div class="cht">💰 รายได้ (30 วันล่าสุด)</div><div class="cp">30 วัน</div></div><div style="height:200px"><div class="bc" id="rc"></div><div class="clb" id="rl"></div></div></div>
+    <div class="cc"><div class="ch"><div class="cht">👥 ผู้ใช้ใหม่ (30 วันล่าสุด)</div><div class="cp">30 วัน</div></div><div style="height:200px"><div class="bc" id="uc"></div><div class="clb" id="ul"></div></div></div>
+  </div>
+</div>
+
+<!-- ═══ USERS ═══ -->
+<div class="pg" id="pg-users">
+  <div class="ds"><div class="dh"><div class="ti">👥 ผู้ใช้งาน <span class="tg-tag">1,247 คน</span></div><div class="tl"><div class="sx"><span>🔍</span><input placeholder="ค้นหาด้วยอีเมลหรือชื่อ..."></div></div></div>
+  <table><thead><tr><th>ผู้ใช้</th><th>เครดิต</th><th>สถานะ</th><th>ใช้งานล่าสุด</th><th>สมัครเมื่อ</th></tr></thead>
+  <tbody>
+    <tr onclick="opn('up')"><td><div class="uc"><div class="ua" style="background:linear-gradient(135deg,#3b82f6,#06b6d4)">SP</div><div><div style="font-weight:600">somchai.p@gmail.com</div><div style="font-size:.75rem;color:var(--t3)">สมชาย ภูมิใจ</div></div></div></td><td><span class="am">12,450</span></td><td><span class="st at"><span class="sd"></span> Active</span></td><td>2 นาทีก่อน</td><td style="color:var(--t3)">2024-08-15</td></tr>
+    <tr onclick="opn('up')"><td><div class="uc"><div class="ua" style="background:linear-gradient(135deg,#8b5cf6,#ec4899)">NK</div><div><div style="font-weight:600">nattaya.k@hotmail.com</div><div style="font-size:.75rem;color:var(--t3)">ณัฐยา กิตติ</div></div></div></td><td><span class="am">3,200</span></td><td><span class="st at"><span class="sd"></span> Active</span></td><td>15 นาทีก่อน</td><td style="color:var(--t3)">2024-11-02</td></tr>
+    <tr onclick="opn('up')"><td><div class="uc"><div class="ua" style="background:linear-gradient(135deg,#f59e0b,#f97316)">WS</div><div><div style="font-weight:600">wichai.s@gmail.com</div><div style="font-size:.75rem;color:var(--t3)">วิชัย สุขใจ</div></div></div></td><td><span class="am">0</span></td><td><span class="st sp"><span class="sd"></span> Suspended</span></td><td>3 วันก่อน</td><td style="color:var(--t3)">2024-06-20</td></tr>
+    <tr onclick="opn('up')"><td><div class="uc"><div class="ua" style="background:linear-gradient(135deg,#10b981,#06b6d4)">PJ</div><div><div style="font-weight:600">piyanut.j@yahoo.com</div><div style="font-size:.75rem;color:var(--t3)">ปิยะณุช จันทร์</div></div></div></td><td><span class="am">8,920</span></td><td><span class="st at"><span class="sd"></span> Active</span></td><td>1 ชม.ก่อน</td><td style="color:var(--t3)">2025-01-10</td></tr>
+  </tbody></table></div>
+</div>
+
+<!-- ═══ SLIPS ═══ -->
+<div class="pg" id="pg-slips">
+  <div class="ds"><div class="dh"><div class="ti">🧾 สลิปเติมเงิน</div><div class="tl"><div class="fp"><button class="pl on" onclick="fp(this)">PENDING</button><button class="pl" onclick="fp(this)">VERIFIED</button><button class="pl" onclick="fp(this)">REJECTED</button><button class="pl" onclick="fp(this)">ALL</button></div></div></div>
+  <table><thead><tr><th>วันที่</th><th>ผู้ใช้</th><th>จำนวน</th><th>เลขอ้างอิง</th><th>สถานะ</th><th></th></tr></thead>
+  <tbody>
+    <tr><td class="mono" style="font-size:.82rem;color:var(--t3)">09/02 14:23</td><td>somchai.p@gmail.com</td><td><span class="am p">฿500</span></td><td class="mono">BK20260209-001</td><td><span class="st pn"><span class="sd"></span> Pending</span></td><td><button class="bt bt-p" style="padding:6px 12px;font-size:.78rem" onclick="opn('sp')">ตรวจสอบ</button></td></tr>
+    <tr><td class="mono" style="font-size:.82rem;color:var(--t3)">09/02 13:45</td><td>nattaya.k@hotmail.com</td><td><span class="am p">฿300</span></td><td class="mono">BK20260209-002</td><td><span class="st pn"><span class="sd"></span> Pending</span></td><td><button class="bt bt-p" style="padding:6px 12px;font-size:.78rem" onclick="opn('sp')">ตรวจสอบ</button></td></tr>
+    <tr><td class="mono" style="font-size:.82rem;color:var(--t3)">09/02 12:10</td><td>piyanut.j@yahoo.com</td><td><span class="am p">฿1,000</span></td><td class="mono">BK20260209-003</td><td><span class="st pn"><span class="sd"></span> Pending</span></td><td><button class="bt bt-p" style="padding:6px 12px;font-size:.78rem" onclick="opn('sp')">ตรวจสอบ</button></td></tr>
+    <tr><td class="mono" style="font-size:.82rem;color:var(--t3)">09/02 10:05</td><td>admin_test@bigeye.pro</td><td><span class="am p">฿200</span></td><td class="mono">BK20260209-004</td><td><span class="st vr"><span class="sd"></span> Verified</span></td><td></td></tr>
+  </tbody></table></div>
+</div>
+
+<!-- ═══ JOBS ═══ -->
+<div class="pg" id="pg-jobs">
+  <div class="ds"><div class="dh"><div class="ti">⚙️ ตรวจสอบงาน</div><div class="tl"><div class="fp"><button class="pl on" onclick="fp(this)">ALL</button><button class="pl" onclick="fp(this)">RESERVED</button><button class="pl" onclick="fp(this)">COMPLETED</button><button class="pl" onclick="fp(this)">EXPIRED</button><button class="pl" onclick="fp(this)">FAILED</button></div></div></div>
+  <table><thead><tr><th>Token</th><th>ผู้ใช้</th><th>โหมด</th><th>ไฟล์</th><th>สถานะ</th><th>สร้างเมื่อ</th></tr></thead>
+  <tbody>
+    <tr onclick="opn('jp')"><td class="mono">a3f8c2d1...</td><td>somchai.p@gmail.com</td><td><span class="tg-tag">istock</span></td><td>45</td><td><span class="st rv"><span class="sd"></span> Reserved</span></td><td style="color:var(--t3)">3 ชม.ก่อน</td></tr>
+    <tr><td class="mono">b7e9f4a2...</td><td>nattaya.k@hotmail.com</td><td><span class="tg-tag">hybrid</span></td><td>12</td><td><span class="st cm"><span class="sd"></span> Completed</span></td><td style="color:var(--t3)">25 นาทีก่อน</td></tr>
+    <tr><td class="mono">c1d2e3f4...</td><td>piyanut.j@yahoo.com</td><td><span class="tg-tag">single</span></td><td>8</td><td><span class="st cm"><span class="sd"></span> Completed</span></td><td style="color:var(--t3)">1 ชม.ก่อน</td></tr>
+    <tr><td class="mono">d5e6f7a8...</td><td>wichai.s@gmail.com</td><td><span class="tg-tag">istock</span></td><td>30</td><td><span class="st fl"><span class="sd"></span> Failed</span></td><td style="color:var(--t3)">2 ชม.ก่อน</td></tr>
+  </tbody></table></div>
+</div>
+
+<!-- ═══ CONFIG ═══ -->
+<div class="pg" id="pg-config">
+  <div class="cg">
+    <div class="ck s1"><h4>📱 เวอร์ชันแอป</h4><div class="fr"><div class="fg"><label>เวอร์ชันล่าสุด</label><input class="fi" value="2.0.0"></div><div class="fg"><label>บังคับอัพเดทต่ำกว่า</label><input class="fi" value="1.9.0"></div></div><div class="fg"><label>ลิงก์ดาวน์โหลด</label><input class="fi" value="https://bigeye.pro/download"></div><div class="fg"><label>บันทึกการอัพเดท</label><textarea class="fi" rows="2" style="resize:vertical">แก้ไขบั๊ก, ปรับปรุงความเร็ว</textarea></div><button class="bt bt-p" style="margin-top:8px;width:100%">💾 บันทึกเวอร์ชัน</button></div>
+    <div class="ck s2"><h4>💰 อัตราเครดิต</h4><div class="sn">iStock</div><div class="fr"><div class="fg"><label>ภาพ (cr/ไฟล์)</label><input class="fi" type="number" value="3"></div><div class="fg"><label>วิดีโอ (cr/ไฟล์)</label><input class="fi" type="number" value="3"></div></div><div class="sn">Adobe & Shutterstock</div><div class="fr"><div class="fg"><label>ภาพ (cr/ไฟล์)</label><input class="fi" type="number" value="2"></div><div class="fg"><label>วิดีโอ (cr/ไฟล์)</label><input class="fi" type="number" value="2"></div></div><div class="fg" style="margin-top:8px"><label>1 บาท = ? เครดิต</label><input class="fi" type="number" value="4"></div><button class="bt bt-p" style="margin-top:8px;width:100%">💾 บันทึกอัตรา</button></div>
+    <div class="ck s3"><h4>⚙️ การประมวลผล</h4><div class="fr"><div class="fg"><label>Context Cache (ไฟล์)</label><input class="fi" type="number" value="20"></div><div class="fg"><label>ภาพพร้อมกันสูงสุด</label><input class="fi" type="number" value="5"></div></div><div class="fg"><label>วิดีโอพร้อมกันสูงสุด</label><input class="fi" type="number" value="2"></div><button class="bt bt-p" style="margin-top:8px;width:100%">💾 บันทึกค่า</button></div>
+    <div class="ck s4"><h4>🚧 โหมดปิดปรับปรุง</h4><div class="tg"><div><div class="tl-t">Maintenance Mode</div><div class="tl-d">ปิดการใช้งานทั้งระบบชั่วคราว</div></div><div class="tw" id="mt" onclick="tmt()"><div class="kn"></div></div></div><div class="fg" style="margin-top:16px"><label>ข้อความแจ้งผู้ใช้</label><input class="fi" value="ระบบกำลังปรับปรุง กรุณาลองใหม่ภายหลัง"></div><div id="ms" style="margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);font-size:.85rem;color:#34d399;font-weight:600;text-align:center">🟢 ระบบทำงานปกติ</div></div>
+  </div>
+  <div class="cg">
+    <div class="ck s5"><h4>📝 พรอมต์</h4>
+      <div class="tg"><div><div class="tl-t">iStock (Dictionary-Strict)</div><div class="tl-d">✅ 4,280 ตัวอักษร</div></div><button class="bt bt-g" style="padding:4px 10px;font-size:.75rem">แก้ไข</button></div>
+      <div class="tg"><div><div class="tl-t">Hybrid Mode (Adobe/SS)</div><div class="tl-d">✅ 3,150 ตัวอักษร</div></div><button class="bt bt-g" style="padding:4px 10px;font-size:.75rem">แก้ไข</button></div>
+      <div class="tg"><div><div class="tl-t">Single Words Mode</div><div class="tl-d">✅ 2,890 ตัวอักษร</div></div><button class="bt bt-g" style="padding:4px 10px;font-size:.75rem">แก้ไข</button></div>
+      <div style="margin-top:12px;font-size:.75rem;color:var(--t3)">เวอร์ชันพรอมต์: v2.1.0</div>
+    </div>
+    <div class="ck s6"><h4>🚫 คำต้องห้าม (Blacklist)</h4>
+      <div style="display:flex;gap:8px;margin-bottom:16px"><input class="fi" placeholder="พิมพ์คำที่ต้องการเพิ่ม..." style="flex:1"><button class="bt bt-p" style="padding:8px 16px">➕</button></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="bl"></div>
+      <div style="margin-top:12px;font-size:.75rem;color:var(--t3)">ปัจจุบัน: 5 คำ</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ AUDIT ═══ -->
+<div class="pg" id="pg-audit">
+  <div class="ds"><div class="dh"><div class="ti">📋 บันทึกระบบ</div><div class="tl"><div class="fp"><button class="pl on" onclick="fp(this)">WARNING+</button><button class="pl" onclick="fp(this)">ALL</button><button class="pl" onclick="fp(this)">INFO</button><button class="pl" onclick="fp(this)">ERROR</button><button class="pl" onclick="fp(this)">CRITICAL</button></div></div></div>
+  <div>
+    <div class="le"><div class="ls w"></div><div style="flex:1"><div class="lb-e">ล็อกอินผิดรหัส</div><div class="lm"><span>👤 wichai.s@gmail.com</span><span>📍 IP: 203.150.xx.xx</span><span style="color:var(--yellow)">WARNING</span></div></div><div class="lt">14:32:15</div></div>
+    <div class="le"><div class="ls e"></div><div style="flex:1"><div class="lb-e">งานล้มเหลว — Timeout</div><div class="lm"><span>👤 somchai.p@gmail.com</span><span>🔖 job: d5e6f7a8</span><span style="color:var(--red)">ERROR</span></div></div><div class="lt">13:18:42</div></div>
+    <div class="le"><div class="ls w"></div><div style="flex:1"><div class="lb-e">อุปกรณ์ไม่ตรง (Hardware ID Mismatch)</div><div class="lm"><span>👤 piyanut.j@yahoo.com</span><span style="color:var(--yellow)">WARNING</span></div></div><div class="lt">12:05:30</div></div>
+    <div class="le"><div class="ls i"></div><div style="flex:1"><div class="lb-e">เติมเงินสำเร็จ</div><div class="lm"><span>👤 nattaya.k@hotmail.com</span><span>💰 ฿300 → 1,200 cr</span><span style="color:var(--blue)">INFO</span></div></div><div class="lt">11:44:18</div></div>
+    <div class="le"><div class="ls i"></div><div style="flex:1"><div class="lb-e">งานเสร็จสมบูรณ์</div><div class="lm"><span>👤 nattaya.k@hotmail.com</span><span>🔖 job: b7e9f4a2</span><span style="color:var(--blue)">INFO</span></div></div><div class="lt">11:20:05</div></div>
+    <div class="le"><div class="ls w"></div><div style="flex:1"><div class="lb-e">งานหมดอายุ — คืนเครดิตอัตโนมัติ</div><div class="lm"><span>👤 somchai.p@gmail.com</span><span>💰 คืน 135 cr</span><span style="color:var(--yellow)">WARNING</span></div></div><div class="lt">10:00:00</div></div>
+    <div class="le"><div class="ls i"></div><div style="flex:1"><div class="lb-e">สมัครสมาชิกใหม่</div><div class="lm"><span>👤 newuser42@gmail.com</span><span style="color:var(--blue)">INFO</span></div></div><div class="lt">09:35:12</div></div>
+  </div></div>
+</div>
+
+<!-- ═══ PROMOS ═══ -->
+<div class="pg" id="pg-promos">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <div class="fp"><button class="pl on" onclick="fp(this)">ALL</button><button class="pl" onclick="fp(this)">ACTIVE</button><button class="pl" onclick="fp(this)">DRAFT</button><button class="pl" onclick="fp(this)">PAUSED</button></div>
+    <button class="bt bt-p">➕ สร้างโปรโมชั่นใหม่</button>
+  </div>
+  <div class="prg">
+    <div class="prc"><div class="prb" style="background:linear-gradient(135deg,#FF4560,#f97316)"></div><div class="prbd"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div class="prn">🎄 โปรปีใหม่ 2026</div><div class="prt">โบนัสขั้นบันได (TIERED_BONUS)</div></div><span class="st at"><span class="sd"></span> Active</span></div><div style="margin-top:8px;padding:8px 12px;background:rgba(255,69,96,.08);border-radius:8px;font-size:.82rem;border:1px solid rgba(255,69,96,.15)">🎁 เติม 100+ รับโบนัสสูงสุด 2,200 เครดิต!</div><div class="prs"><div class="ps"><div class="pv" style="color:var(--green)">1,247</div><div class="pp">ใช้แล้ว</div></div><div class="ps"><div class="pv" style="color:var(--cyan)">89,400</div><div class="pp">เครดิตโบนัส</div></div><div class="ps"><div class="pv" style="color:var(--yellow)">฿156K</div><div class="pp">ยอดเติม</div></div></div></div></div>
+    <div class="prc"><div class="prb" style="background:linear-gradient(135deg,#00E396,#06b6d4)"></div><div class="prbd"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div class="prn">🎉 Welcome Bonus</div><div class="prt">โบนัสสมัครใหม่ (WELCOME_BONUS)</div></div><span class="st at"><span class="sd"></span> Active</span></div><div style="margin-top:8px;padding:8px 12px;background:rgba(0,227,150,.08);border-radius:8px;font-size:.82rem;border:1px solid rgba(0,227,150,.15)">🆕 สมัครใหม่รับ 200 เครดิตฟรี!</div><div class="prs"><div class="ps"><div class="pv" style="color:var(--green)">523</div><div class="pp">ใช้แล้ว</div></div><div class="ps"><div class="pv" style="color:var(--cyan)">104,600</div><div class="pp">เครดิตโบนัส</div></div><div class="ps"><div class="pv" style="color:var(--yellow)">523</div><div class="pp">ผู้ใช้</div></div></div></div></div>
+    <div class="prc"><div class="prb" style="background:linear-gradient(135deg,#775DD0,#ec4899)"></div><div class="prbd"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div class="prn">💎 VIP Rate Boost</div><div class="prt">อัตราแลกเปลี่ยนพิเศษ (RATE_BOOST)</div></div><span class="st dr"><span class="sd"></span> Draft</span></div><div style="margin-top:8px;padding:8px 12px;background:rgba(119,93,208,.08);border-radius:8px;font-size:.82rem;border:1px solid rgba(119,93,208,.15)">💎 VIP รับอัตราแลกเปลี่ยน 1 บาท = 5 เครดิต</div><div class="prs"><div class="ps"><div class="pv" style="color:var(--t3)">0</div><div class="pp">ใช้แล้ว</div></div><div class="ps"><div class="pv" style="color:var(--t3)">0</div><div class="pp">เครดิตโบนัส</div></div><div class="ps"><div class="pv" style="color:var(--t3)">0</div><div class="pp">ผู้ใช้</div></div></div></div></div>
+  </div>
+</div>
+
+</div><!-- /ct -->
+</div><!-- /mn -->
+
+<!-- ═══ PANELS ═══ -->
+<div class="dp" id="up"><div class="ov" onclick="cls('up')"></div><div class="dp-h"><h3>👤 รายละเอียดผู้ใช้</h3><button class="dp-x" onclick="cls('up')">✕</button></div><div class="dp-b">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div class="ua" style="width:48px;height:48px;font-size:1rem;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#06b6d4)">SP</div><div><div style="font-weight:700;font-size:1.1rem">somchai.p@gmail.com</div><div style="color:var(--t3);font-size:.85rem">สมชาย ภูมิใจ</div></div></div>
+  <div class="ig">
+    <div class="ii"><div class="il">เครดิต</div><div class="iv" style="color:var(--green)">12,450</div></div>
+    <div class="ii"><div class="il">เติมเงินรวม</div><div class="iv">฿24,500</div></div>
+    <div class="ii"><div class="il">สถานะ</div><div class="iv"><span class="st at"><span class="sd"></span> Active</span></div></div>
+    <div class="ii"><div class="il">สมัครเมื่อ</div><div class="iv" style="font-size:.88rem">2024-08-15</div></div>
+    <div class="ii fu"><div class="il">Hardware ID</div><div class="iv mono" style="font-size:.82rem">HW-A3F8C2D1-B7E9-4FA2</div></div>
+  </div>
+  <div class="sn">จัดการ</div>
+  <div class="ag" style="border-top:none;padding-top:0"><button class="bt bt-p">💰 ปรับเครดิต</button><button class="bt bt-d">🔴 ระงับบัญชี</button><button class="bt bt-g">🔄 รีเซ็ต HW ID</button></div>
+  <div class="sn" style="margin-top:24px">ประวัติเครดิตล่าสุด</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg2);border-radius:8px;border:1px solid var(--bdr)"><div><div style="font-size:.85rem;font-weight:500">เติมเงิน 500 บาท</div><div style="font-size:.72rem;color:var(--t3)">09/02 14:23</div></div><span class="am p" style="font-size:.95rem">+2,000</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg2);border-radius:8px;border:1px solid var(--bdr)"><div><div style="font-size:.85rem;font-weight:500">ใช้งาน iStock (45 ไฟล์)</div><div style="font-size:.72rem;color:var(--t3)">09/02 13:10</div></div><span class="am n" style="font-size:.95rem">-135</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg2);border-radius:8px;border:1px solid var(--bdr)"><div><div style="font-size:.85rem;font-weight:500">แอดมินปรับ: ชดเชย</div><div style="font-size:.72rem;color:var(--t3)">08/02 16:40</div></div><span class="am p" style="font-size:.95rem">+500</span></div>
+  </div>
+</div></div>
+
+<div class="dp" id="sp"><div class="ov" onclick="cls('sp')"></div><div class="dp-h"><h3>🔍 ตรวจสอบสลิป</h3><button class="dp-x" onclick="cls('sp')">✕</button></div><div class="dp-b">
+  <div style="width:100%;height:260px;background:var(--bg2);border:1px solid var(--bdr);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:20px"><div style="text-align:center;color:var(--t3)"><div style="font-size:3rem;margin-bottom:8px">🧾</div><div style="font-size:.85rem">ภาพสลิปการชำระเงิน</div></div></div>
+  <div class="ig">
+    <div class="ii"><div class="il">ผู้ใช้</div><div class="iv" style="font-size:.88rem">somchai.p@gmail.com</div></div>
+    <div class="ii"><div class="il">จำนวน</div><div class="iv" style="color:var(--green)">฿500</div></div>
+    <div class="ii"><div class="il">เลขอ้างอิง</div><div class="iv mono" style="font-size:.82rem">BK20260209-001</div></div>
+    <div class="ii"><div class="il">ส่งเมื่อ</div><div class="iv" style="font-size:.88rem">09/02/26 14:23</div></div>
+  </div>
+  <div class="sn">จำนวนเครดิตที่จะเติม</div>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px"><input class="fi" type="number" value="2000" style="flex:1;font-size:1.1rem;font-weight:700;text-align:center"><span style="color:var(--t3);font-size:.85rem">เครดิต</span></div>
+  <div style="font-size:.78rem;color:var(--t3);margin-bottom:20px;text-align:center">฿500 × 4 cr/บาท = 2,000 เครดิต</div>
+  <div class="ag"><button class="bt bt-s" style="flex:1;justify-content:center">✅ อนุมัติ</button><button class="bt bt-d" style="flex:1;justify-content:center">❌ ปฏิเสธ</button></div>
+</div></div>
+
+<div class="dp" id="jp"><div class="ov" onclick="cls('jp')"></div><div class="dp-h"><h3>📋 รายละเอียดงาน</h3><button class="dp-x" onclick="cls('jp')">✕</button></div><div class="dp-b">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><span class="mono" style="font-size:1rem">a3f8c2d1-b7e9-4fa2</span><span class="st rv"><span class="sd"></span> Reserved</span></div>
+  <div class="ig">
+    <div class="ii"><div class="il">จองไว้</div><div class="iv" style="color:var(--yellow)">135 cr</div></div>
+    <div class="ii"><div class="il">ใช้แล้ว</div><div class="iv">0 cr</div></div>
+    <div class="ii"><div class="il">ไฟล์</div><div class="iv">45</div></div>
+    <div class="ii"><div class="il">โหมด</div><div class="iv">iStock</div></div>
+    <div class="ii"><div class="il">สำเร็จ</div><div class="iv" style="color:var(--green)">0</div></div>
+    <div class="ii"><div class="il">ล้มเหลว</div><div class="iv" style="color:var(--red)">0</div></div>
+    <div class="ii fu"><div class="il">ผู้ใช้</div><div class="iv" style="font-size:.88rem">somchai.p@gmail.com</div></div>
+    <div class="ii"><div class="il">อายุ</div><div class="iv" style="color:var(--red)">3 ชม.ก่อน</div></div>
+    <div class="ii"><div class="il">เวอร์ชัน</div><div class="iv">2.0.0</div></div>
+  </div>
+  <div style="margin-top:16px;padding:14px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;text-align:center"><div style="font-weight:700;color:#f87171;margin-bottom:4px">🔴 งานค้างเกิน 2 ชั่วโมง</div><div style="font-size:.78rem;color:var(--t3)">ควรคืนเครดิตให้ผู้ใช้</div></div>
+  <div class="ag"><button class="bt bt-w" style="flex:1;justify-content:center">💰 คืนเครดิต (135 cr)</button></div>
+</div></div>
+
+<script>
+// NAV
+const titles={dashboard:'📊 แดชบอร์ด',users:'👥 ผู้ใช้งาน',slips:'🧾 สลิปเติมเงิน',jobs:'⚙️ ตรวจสอบงาน',config:'🔧 ตั้งค่าระบบ',audit:'📋 บันทึกระบบ',promos:'🎁 โปรโมชั่น'};
+function nav(p){document.querySelectorAll('.pg').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.ni').forEach(e=>e.classList.remove('a'));document.getElementById('pg-'+p).classList.add('on');document.querySelector(`.ni[data-p="${p}"]`).classList.add('a');document.getElementById('pt').textContent=titles[p]||p}
+document.querySelectorAll('.ni').forEach(i=>i.addEventListener('click',()=>nav(i.dataset.p)));
+
+// PANELS
+function opn(id){document.getElementById(id).classList.add('op')}
+function cls(id){document.getElementById(id).classList.remove('op')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.dp.op').forEach(p=>p.classList.remove('op'))});
+
+// CLOCK
+function uc(){const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' • '+n.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'})}
+uc();setInterval(uc,1000);
+
+// FILTER PILLS
+function fp(el){el.parentElement.querySelectorAll('.pl').forEach(p=>p.classList.remove('on'));el.classList.add('on')}
+
+// MAINTENANCE TOGGLE
+function tmt(){const t=document.getElementById('mt'),s=document.getElementById('ms');t.classList.toggle('on');if(t.classList.contains('on')){s.style.background='rgba(239,68,68,.08)';s.style.borderColor='rgba(239,68,68,.2)';s.style.color='#f87171';s.textContent='🔴 โหมดปิดปรับปรุงเปิดอยู่'}else{s.style.background='rgba(16,185,129,.08)';s.style.borderColor='rgba(16,185,129,.2)';s.style.color='#34d399';s.textContent='🟢 ระบบทำงานปกติ'}}
+
+// BLACKLIST TAGS
+const bl=['spam','nsfw','copyright','illegal','violence'];
+const blc=document.getElementById('bl');
+bl.forEach(w=>{const s=document.createElement('span');s.style.cssText='display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);font-size:.78rem;color:#f87171';s.innerHTML=w+' <span style="cursor:pointer;opacity:.6">×</span>';blc.appendChild(s)});
+
+// CHARTS
+function renderChart(id,lid,data,color){
+  const c=document.getElementById(id),l=document.getElementById(lid);
+  const mx=Math.max(...data.map(d=>d.v));
+  data.forEach(d=>{
+    const b=document.createElement('div');b.className='bcl';
+    const h=Math.max(4,(d.v/mx)*155);
+    b.style.height=h+'px';b.style.background=`linear-gradient(to top,${color},${color}88)`;
+    b.innerHTML=`<div class="tp">${d.l}: ${d.v.toLocaleString()}</div>`;
+    c.appendChild(b);
+  });
+  data.forEach(d=>{const s=document.createElement('span');s.textContent=d.l;l.appendChild(s)});
+}
+
+// Generate 30 days mock data
+const days=[];for(let i=29;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days.push(d.getDate()+'/'+(d.getMonth()+1))}
+const revData=days.map((l,i)=>({l,v:Math.floor(8000+Math.random()*45000+Math.sin(i/4)*15000)}));
+const usrData=days.map((l,i)=>({l,v:Math.floor(15+Math.random()*35+Math.sin(i/3)*10)}));
+renderChart('rc','rl',revData,'#10b981');
+renderChart('uc','ul',usrData,'#3b82f6');
+</script>
+</body>
+</html>
