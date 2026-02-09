@@ -47,13 +47,16 @@ def classify_error(exc: Exception) -> GeminiError:
     """Classify a raw Gemini API exception into a GeminiError."""
     msg = str(exc).lower()
 
-    if "rate" in msg and "limit" in msg or "429" in msg or "resource_exhausted" in msg:
+    # HttpError 200 — Google API client lib bug (response parsing failure on success)
+    if "httperror" in msg and "200" in msg:
+        return GeminiError(str(exc), GeminiErrorType.UNKNOWN, retryable=True)
+    elif "rate" in msg and "limit" in msg or "429" in msg or "resource_exhausted" in msg:
         return GeminiError(str(exc), GeminiErrorType.RATE_LIMIT, retryable=True)
     elif "quota" in msg or "billing" in msg:
         return GeminiError(str(exc), GeminiErrorType.QUOTA, retryable=False)
     elif "safety" in msg or "blocked" in msg or "harm" in msg:
         return GeminiError(str(exc), GeminiErrorType.SAFETY, retryable=False)
-    elif "timeout" in msg or "deadline" in msg:
+    elif "timeout" in msg or "deadline" in msg or "timed out" in msg:
         return GeminiError(str(exc), GeminiErrorType.TIMEOUT, retryable=True)
     elif "ssl" in msg or "wrong_version_number" in msg or "certificate" in msg:
         return GeminiError(str(exc), GeminiErrorType.TIMEOUT, retryable=True)
@@ -241,12 +244,20 @@ class GeminiEngine:
                 raise
 
         # Wait for video to be processed (ACTIVE state)
-        max_wait = 120  # seconds
+        max_wait = 180  # seconds
         elapsed = 0
         while video_file.state.name == "PROCESSING" and elapsed < max_wait:
-            time.sleep(2)
-            elapsed += 2
-            video_file = genai.get_file(video_file.name)
+            time.sleep(3)
+            elapsed += 3
+            try:
+                video_file = genai.get_file(video_file.name)
+            except Exception as poll_err:
+                # Transient errors during polling (incl. HttpError 200) — retry
+                logger.warning(f"get_file poll error (elapsed {elapsed}s): {poll_err}")
+                if elapsed >= max_wait:
+                    raise
+                time.sleep(2)
+                continue
 
         if video_file.state.name == "FAILED":
             raise GeminiError(
@@ -287,7 +298,7 @@ class GeminiEngine:
                 with self._api_sem:
                     response = model.generate_content(
                         contents,
-                        request_options={"timeout": timeout},
+                        request_options={"timeout": (30, timeout)},
                     )
 
                 # Check for blocked response
