@@ -131,7 +131,9 @@ class Inspector(QWidget):
         self.setFixedWidth(INSPECTOR_WIDTH)
         self._current_file = ""
         self._results = {}
+        self._loading = False  # Guard flag to prevent saves during data load
         self._setup_ui()
+        self._connect_edit_signals()
 
     def _setup_ui(self):
         scroll = QScrollArea(self)
@@ -236,25 +238,45 @@ class Inspector(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
+    def _connect_edit_signals(self):
+        """Connect text-changed signals so edits are saved in real-time."""
+        self.title_edit.textChanged.connect(self._on_edit)
+        self.desc_edit.textChanged.connect(self._on_edit)
+        self.keywords_edit.textChanged.connect(self._on_edit)
+
     def _make_label(self, text):
         lbl = QLabel(text)
         lbl.setStyleSheet("color: #8892A8; font-size: 11px;")
         return lbl
 
     def _on_edit(self):
-        if not self._current_file:
+        """Called on every text change — persist edits to _results immediately."""
+        if self._loading or not self._current_file:
             return
         data = {
             "title": self.title_edit.toPlainText().replace("\n", " ").strip(),
             "description": self.desc_edit.toPlainText(),
             "keywords": [k.strip() for k in self.keywords_edit.toPlainText().split(",") if k.strip()],
         }
+        # Write directly to shared results dict
+        filename = os.path.basename(self._current_file)
+        if filename in self._results:
+            self._results[filename].update(data)
         self.metadata_edited.emit(self._current_file, data)
+
+    def _save_current_edits(self):
+        """Flush any pending edits for the current file before switching."""
+        if not self._current_file or not self.edit_container.isVisible():
+            return
+        self._on_edit()
 
     def set_results_ref(self, results: dict):
         self._results = results
 
     def show_file(self, filepath: str):
+        # Save edits for the previous file before switching
+        self._save_current_edits()
+        self._loading = True
         self._current_file = filepath
         filename = os.path.basename(filepath)
         self.filename_label.setText(filename)
@@ -286,6 +308,7 @@ class Inspector(QWidget):
             self.keywords_edit.setPlainText(kw)
             count = len([k for k in kw.split(",") if k.strip()]) if kw else 0
             self.keywords_label.setText(f"Keywords ({count})")
+            self._loading = False
         elif status == "processing":
             self.title_label.setText("Title")
             self.desc_label.setText("Description")
@@ -307,6 +330,7 @@ class Inspector(QWidget):
             self.status_label.setText("Pending")
             self.status_label.setStyleSheet("color: #4A5568; font-size: 12px; padding: 8px;")
             self.status_label.show()
+        self._loading = False
 
     def set_processing(self, is_processing: bool):
         self.title_edit.setReadOnly(is_processing)

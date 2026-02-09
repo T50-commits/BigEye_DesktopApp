@@ -75,9 +75,9 @@ SLIDER_CONFIGS = {
     "description": {"min": 100, "max": 500, "default": 200, "step": 10},
 }
 
-# Supported file extensions
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp"}
-VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+# Supported file extensions (stock-site compatible only)
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".eps"}
+VIDEO_EXTENSIONS = {".mp4", ".mov"}
 ALL_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 # AES key for decrypting server config (placeholder — set from server)
