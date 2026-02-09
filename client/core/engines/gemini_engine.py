@@ -8,6 +8,7 @@ import time
 import logging
 import os
 import threading
+from datetime import timedelta
 from enum import Enum
 from typing import Optional
 
@@ -81,7 +82,7 @@ class GeminiEngine:
         self._cache = None
         self._cache_name = ""
         self._model_lock = threading.Lock()      # Protect lazy model creation
-        self._api_sem = threading.Semaphore(3)   # Allow up to 3 concurrent API calls
+        self._api_sem = threading.Semaphore(6)   # Allow parallel uploads + generates
 
     # ── Configuration ──
 
@@ -126,7 +127,7 @@ class GeminiEngine:
                 model=self._model_name,
                 display_name=display_name,
                 system_instruction=system_prompt,
-                ttl=f"{ttl_minutes * 60}s",
+                ttl=timedelta(minutes=ttl_minutes),
             )
             self._cache_name = self._cache.name
             self._model = None  # Reset to pick up cached content

@@ -56,21 +56,20 @@ def search_users(query: str = "") -> list[dict]:
     return results
 
 
-def get_user_jobs(uid: str, limit: int = 20) -> list[dict]:
+def get_user_jobs(uid: str, limit: int = 50) -> list[dict]:
     results = []
     try:
-        # Simple filter only — sort in Python to avoid composite index
+        # Fetch all jobs for user, sort in Python to avoid composite index requirement
         docs = list(
             jobs_ref()
             .where(filter=FieldFilter("user_id", "==", uid))
-            .limit(limit)
             .stream()
         )
         docs.sort(
             key=lambda d: d.to_dict().get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
             reverse=True,
         )
-        for doc in docs:
+        for doc in docs[:limit]:
             d = doc.to_dict()
             d["id"] = doc.id
             results.append(d)
@@ -80,20 +79,20 @@ def get_user_jobs(uid: str, limit: int = 20) -> list[dict]:
     return results
 
 
-def get_user_transactions(uid: str, limit: int = 30) -> list[dict]:
+def get_user_transactions(uid: str, limit: int = 50) -> list[dict]:
     results = []
     try:
+        # Fetch all transactions for user, sort in Python to avoid composite index requirement
         docs = list(
             transactions_ref()
             .where(filter=FieldFilter("user_id", "==", uid))
-            .limit(limit)
             .stream()
         )
         docs.sort(
             key=lambda d: d.to_dict().get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
             reverse=True,
         )
-        for doc in docs:
+        for doc in docs[:limit]:
             d = doc.to_dict()
             d["id"] = doc.id
             results.append(d)
