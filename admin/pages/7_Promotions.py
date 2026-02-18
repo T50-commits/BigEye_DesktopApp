@@ -3,6 +3,9 @@ BigEye Pro Admin — หน้าจัดการโปรโมชั่น
 สร้าง, แก้ไข, เปิด/หยุด/ยกเลิก, โคลน, ดูสถิติ
 """
 import streamlit as st
+from utils.auth import require_auth
+require_auth()
+
 import pandas as pd
 from datetime import datetime, timezone
 
@@ -424,8 +427,8 @@ for promo in promos:
                 st.session_state.pop(f"editing_{pid}", None)
                 st.rerun()
 
-        # Redemption log
-        with st.expander("📊 ประวัติการใช้โปร"):
+        # Redemption log (use checkbox instead of expander to avoid nesting)
+        if st.checkbox("📊 ดูประวัติการใช้โปร", key=f"log_{pid}"):
             try:
                 rdocs = list(
                     promo_redemptions_ref()

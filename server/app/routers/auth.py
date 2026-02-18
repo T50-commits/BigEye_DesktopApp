@@ -5,19 +5,22 @@ POST /auth/register, POST /auth/login
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from google.cloud.firestore_v1 import FieldFilter
 
 from app.models import RegisterRequest, LoginRequest, AuthResponse
 from app.database import users_ref, audit_logs_ref
 from app.security import hash_password, verify_password, create_jwt_token
+from app.rate_limit import limiter
+from app.services.promo_engine import apply_welcome_bonus
 
 logger = logging.getLogger("bigeye-api")
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/register", response_model=AuthResponse)
-async def register(req: RegisterRequest):
+@limiter.limit("3/minute")
+async def register(request: Request, req: RegisterRequest):
     """Register a new user account."""
     # Check duplicate email
     existing = list(
@@ -59,11 +62,21 @@ async def register(req: RegisterRequest):
     # Create JWT
     token = create_jwt_token(user_id, req.email.lower())
 
+    # Apply welcome bonus if any ACTIVE WELCOME_BONUS promo exists
+    welcome_credits = 0
+    try:
+        bonus_result = apply_welcome_bonus(user_id)
+        if bonus_result:
+            welcome_credits = bonus_result["bonus_credits"]
+            logger.info(f"Welcome bonus: {user_id} +{welcome_credits} cr ({bonus_result['promo_name']})")
+    except Exception as e:
+        logger.warning(f"Failed to apply welcome bonus for {user_id}: {e}")
+
     # Audit log
     audit_logs_ref().add({
         "event_type": "USER_REGISTER",
         "user_id": user_id,
-        "details": {"email": req.email.lower()},
+        "details": {"email": req.email.lower(), "welcome_bonus": welcome_credits},
         "severity": "INFO",
         "created_at": now,
     })
@@ -74,12 +87,13 @@ async def register(req: RegisterRequest):
         user_id=user_id,
         email=req.email.lower(),
         full_name=req.full_name,
-        credits=0,
+        credits=welcome_credits,
     )
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(req: LoginRequest):
+@limiter.limit("5/minute")
+async def login(request: Request, req: LoginRequest):
     """Login with email + password. Validates hardware_id binding."""
     now = datetime.now(timezone.utc)
 
@@ -108,7 +122,7 @@ async def login(req: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     # Check account status
-    if user.get("status") == "banned":
+    if user.get("status") in ("banned", "suspended"):
         raise HTTPException(status_code=403, detail="Account suspended")
 
     # Check hardware_id binding
@@ -129,12 +143,16 @@ async def login(req: LoginRequest):
             detail="This account is bound to a different device. Contact support.",
         )
 
-    # Update last login
-    users_ref().document(user_id).update({
+    # Update last login + re-bind hardware_id if it was reset
+    update_data = {
         "last_login": now,
         "last_active": now,
         "app_version": req.app_version,
-    })
+    }
+    if not stored_hw:
+        update_data["hardware_id"] = req.hardware_id
+        logger.info(f"Hardware ID re-bound for user {user_id}")
+    users_ref().document(user_id).update(update_data)
 
     # Create JWT
     token = create_jwt_token(user_id, req.email.lower())

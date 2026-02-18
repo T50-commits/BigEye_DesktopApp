@@ -3,6 +3,9 @@ BigEye Pro Admin — หน้าจัดการสลิป (เติมเ
 กรองสถานะ, ดูภาพสลิป, อนุมัติ/ปฏิเสธ
 """
 import streamlit as st
+from utils.auth import require_auth
+require_auth()
+
 import pandas as pd
 import base64
 from datetime import datetime, timezone

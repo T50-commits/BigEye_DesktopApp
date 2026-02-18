@@ -3,6 +3,9 @@ BigEye Pro Admin — หน้าบันทึกระบบ (Audit Logs)
 กรองตามระดับ, ดูรายละเอียด JSON
 """
 import streamlit as st
+from utils.auth import require_auth
+require_auth()
+
 import json
 from datetime import datetime, timedelta, timezone
 from google.cloud.firestore_v1 import FieldFilter

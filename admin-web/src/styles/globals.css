@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-root: #f5f7fa;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f0f2f5;
+  --bg-input: #f8f9fb;
+  --bg-hover: #e8ecf1;
+  --border: #d1d9e6;
+  --border-hover: #b0bdd0;
+  --text-primary: #1a202c;
+  --text-secondary: #4a5568;
+  --text-muted: #a0aec0;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background: var(--bg-root);
+  color: var(--text-primary);
+  font-family: 'Geist', 'IBM Plex Sans Thai', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c4cdd9; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+
+/* Input focus */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}

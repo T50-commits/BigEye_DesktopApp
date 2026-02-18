@@ -3,24 +3,24 @@ BigEye Pro — Pydantic Models
 Request/Response schemas for all API endpoints.
 """
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Literal, Optional
 
 
 # ── Auth ──
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=6, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=100)
-    phone: str = ""
-    hardware_id: str = Field(min_length=8, max_length=64)
+    phone: str = Field(default="", max_length=15)
+    hardware_id: str = Field(min_length=16, max_length=128)
     os_type: str = ""  # "Windows" | "macOS" | "Linux"
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
-    hardware_id: str = Field(min_length=8, max_length=64)
+    password: str = Field(min_length=8, max_length=128)
+    hardware_id: str = Field(min_length=16, max_length=128)
     app_version: str = ""
 
 
@@ -68,7 +68,7 @@ class ReserveJobRequest(BaseModel):
     file_count: int = Field(gt=0)
     photo_count: int = 0
     video_count: int = 0
-    mode: str  # "iStock" | "Adobe & Shutterstock"
+    mode: Literal["iStock", "Adobe", "Shutterstock", "Adobe & Shutterstock"]
     keyword_style: str = ""  # "Hybrid" | "Single Words"
     model: str = "gemini-2.5-pro"
     version: str = ""

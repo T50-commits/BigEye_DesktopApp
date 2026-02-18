@@ -253,11 +253,16 @@ class Inspector(QWidget):
         """Called on every text change — persist edits to _results immediately."""
         if self._loading or not self._current_file:
             return
+        kw_list = [k.strip() for k in self.keywords_edit.toPlainText().split(",") if k.strip()]
         data = {
             "title": self.title_edit.toPlainText().replace("\n", " ").strip(),
             "description": self.desc_edit.toPlainText(),
-            "keywords": [k.strip() for k in self.keywords_edit.toPlainText().split(",") if k.strip()],
+            "keywords": kw_list,
         }
+        # Update labels with live counts
+        self.title_label.setText(f"Title ({len(data['title'])})")
+        self.desc_label.setText(f"Description ({len(data['description'])})")
+        self.keywords_label.setText(f"Keywords ({len(kw_list)})")
         # Write directly to shared results dict
         filename = os.path.basename(self._current_file)
         if filename in self._results:
@@ -304,9 +309,12 @@ class Inspector(QWidget):
             self.desc_label.setText(f"Description ({len(desc_text)})")
             kw = result.get("keywords", [])
             if isinstance(kw, list):
-                kw = ", ".join(kw)
-            self.keywords_edit.setPlainText(kw)
-            count = len([k for k in kw.split(",") if k.strip()]) if kw else 0
+                count = len(kw)
+                kw_text = ", ".join(kw)
+            else:
+                kw_text = kw
+                count = len([k for k in kw_text.split(",") if k.strip()]) if kw_text else 0
+            self.keywords_edit.setPlainText(kw_text)
             self.keywords_label.setText(f"Keywords ({count})")
             self._loading = False
         elif status == "processing":

@@ -58,6 +58,8 @@ def classify_error(exc: Exception) -> GeminiError:
         return GeminiError(str(exc), GeminiErrorType.TIMEOUT, retryable=True)
     elif "ssl" in msg or "wrong_version_number" in msg or "certificate" in msg:
         return GeminiError(str(exc), GeminiErrorType.TIMEOUT, retryable=True)
+    elif "httperror" in msg or "http error" in msg:
+        return GeminiError(str(exc), GeminiErrorType.UNKNOWN, retryable=True)
     elif "api_key" in msg or "invalid" in msg and "key" in msg or "401" in msg:
         return GeminiError(str(exc), GeminiErrorType.INVALID_KEY, retryable=False)
     elif "not found" in msg and "model" in msg or "404" in msg:
@@ -81,21 +83,31 @@ class GeminiEngine:
         self._model = None
         self._cache = None
         self._cache_name = ""
+        self._system_prompt = ""                 # Stored for inline system_instruction
         self._model_lock = threading.Lock()      # Protect lazy model creation
-        self._api_sem = threading.Semaphore(6)   # Allow parallel uploads + generates
+        self._api_sem = threading.Semaphore(6)   # Allow parallel generates
+        self._upload_lock = threading.Lock()     # Serialize video uploads (SSL corruption fix)
+        self._prefetch_lock = threading.Lock()   # Protect prefetched dict
+        self._prefetched = {}                    # {filepath: video_file} pre-uploaded videos
 
     # ── Configuration ──
 
     def set_api_key(self, key: str):
         """Set the Gemini API key and configure the client."""
         self._api_key = key
-        genai.configure(api_key=key)
+        genai.configure(api_key=key, transport="rest")
         self._model = None  # Reset model when key changes
 
     def set_model(self, model_name: str):
         """Set the model name (e.g. gemini-2.5-pro)."""
         self._model_name = model_name
         self._model = None  # Reset model when name changes
+
+    def set_system_prompt(self, system_prompt: str):
+        """Set system prompt for inline system_instruction (fallback when cache unavailable)."""
+        if system_prompt != self._system_prompt:
+            self._system_prompt = system_prompt
+            self._model = None  # Rebuild model with new system_instruction
 
     def _get_model(self) -> genai.GenerativeModel:
         """Get or create the GenerativeModel instance (thread-safe)."""
@@ -111,6 +123,8 @@ class GeminiEngine:
                     }
                     if self._cache:
                         kwargs["cached_content"] = self._cache
+                    elif self._system_prompt:
+                        kwargs["system_instruction"] = self._system_prompt
                     self._model = genai.GenerativeModel(**kwargs)
         return self._model
 
@@ -185,15 +199,35 @@ class GeminiEngine:
             timeout=TIMEOUT_PHOTO,
         )
 
+    def prefetch_video(self, filepath: str):
+        """
+        Pre-upload a video in the background so it's ready when process_video is called.
+        Safe to call from a different thread. Errors are deferred to process_video.
+        """
+        try:
+            video_file = self._upload_video(filepath)
+            with self._prefetch_lock:
+                self._prefetched[filepath] = video_file
+            logger.info(f"Prefetched video: {os.path.basename(filepath)}")
+        except Exception as e:
+            logger.warning(f"Prefetch failed for {os.path.basename(filepath)}: {e}")
+            # Don't store — process_video will upload normally
+
     def process_video(self, filepath: str, prompt: str,
                       system_prompt: str = "") -> dict:
         """
         Process a video file with Gemini API.
-        Uploads video, waits for processing, then generates.
+        Uses prefetched upload if available, otherwise uploads now.
         Returns parsed JSON dict.
         Raises GeminiError on classified failure.
         """
-        video_file = self._upload_video(filepath)
+        # Use prefetched upload if available
+        with self._prefetch_lock:
+            video_file = self._prefetched.pop(filepath, None)
+        if video_file:
+            logger.info(f"Using prefetched upload: {video_file.name}")
+        else:
+            video_file = self._upload_video(filepath)
         try:
             return self._generate_with_retry(
                 contents=[video_file, prompt],
@@ -206,6 +240,16 @@ class GeminiEngine:
                 genai.delete_file(video_file.name)
             except Exception:
                 pass
+
+    def cleanup_prefetched(self):
+        """Delete any prefetched videos that were never used."""
+        for fp, vf in self._prefetched.items():
+            try:
+                genai.delete_file(vf.name)
+                logger.debug(f"Cleaned prefetched: {vf.name}")
+            except Exception:
+                pass
+        self._prefetched.clear()
 
     # ── Internal helpers ──
 
@@ -224,26 +268,33 @@ class GeminiEngine:
             "data": data,
         }
 
+    def _reset_client(self):
+        """Reset genai client (REST transport — rarely needed)."""
+        if self._api_key:
+            genai.configure(api_key=self._api_key, transport="rest")
+            logger.info("Gemini client reset")
+
     def _upload_video(self, filepath: str):
-        """Upload video to Gemini File API and wait for processing."""
+        """Upload video to Gemini File API and wait for processing. Upload serialized to prevent SSL corruption."""
         logger.info(f"Uploading video: {os.path.basename(filepath)}")
-        max_upload_retries = 3
+        max_upload_retries = 5
         for attempt in range(1, max_upload_retries + 1):
             try:
-                with self._api_sem:
+                with self._upload_lock:
                     video_file = genai.upload_file(filepath)
                 break
             except Exception as e:
                 msg = str(e).lower()
-                # Retry on SSL errors, timeout errors, or connection errors
                 is_retryable = (
                     "ssl" in msg or "wrong_version_number" in msg or
                     "timeout" in msg or "timed out" in msg or "read operation" in msg or
-                    "connection" in msg or "network" in msg
+                    "connection" in msg or "network" in msg or
+                    "httperror" in msg or "http error" in msg
                 )
                 if is_retryable and attempt < max_upload_retries:
                     logger.warning(f"Video upload error (attempt {attempt}/{max_upload_retries}): {e}")
-                    time.sleep(2 ** attempt)
+                    backoff = min(3 ** attempt, 30)  # 3, 9, 27, 30
+                    time.sleep(backoff)
                     continue
                 raise
 
@@ -277,20 +328,16 @@ class GeminiEngine:
         Retries up to MAX_RETRIES for retryable errors with exponential backoff.
         Returns parsed JSON response dict.
         """
+        # Store system_prompt so _get_model can embed it as system_instruction
+        if system_prompt and system_prompt != self._system_prompt:
+            self._system_prompt = system_prompt
+            self._model = None  # Force model rebuild with new system_instruction
+
         model = self._get_model()
         last_error = None
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                # Build request kwargs
-                kwargs = {"contents": contents}
-                if system_prompt and not self._cache:
-                    # If no cache, pass system prompt inline
-                    kwargs["generation_config"] = genai.GenerationConfig(
-                        response_mime_type="application/json",
-                        temperature=0.3,
-                    )
-
                 with self._api_sem:
                     response = model.generate_content(
                         contents,
@@ -330,6 +377,12 @@ class GeminiEngine:
 
                 if not last_error.retryable or attempt >= MAX_RETRIES:
                     raise last_error
+
+                # Reset client on SSL/connection errors
+                raw_msg = str(e).lower()
+                if "ssl" in raw_msg or "wrong_version_number" in raw_msg or "connection" in raw_msg:
+                    self._reset_client()
+                    model = self._get_model()
 
                 # Exponential backoff: 2s, 4s, 8s...
                 backoff = 2 ** attempt

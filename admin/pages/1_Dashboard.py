@@ -3,6 +3,9 @@ BigEye Pro Admin — หน้าแดชบอร์ด
 สถิติวันนี้, กราฟรายได้, การเติบโตผู้ใช้, รายการรอดำเนินการ
 """
 import streamlit as st
+from utils.auth import require_auth
+require_auth()
+
 from datetime import datetime, timedelta, timezone
 
 from utils.firestore_client import (

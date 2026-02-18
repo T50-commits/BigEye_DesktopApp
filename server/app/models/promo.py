@@ -160,8 +160,7 @@ class BalanceWithPromosResponse(BaseModel):
 
 
 class TopUpWithPromoRequest(BaseModel):
-    slip: str  # base64 encoded slip image
-    amount: int = Field(gt=0)
+    slip: str  # QR code data extracted from payment slip
     promo_code: Optional[str] = None
 
 

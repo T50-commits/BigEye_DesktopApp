@@ -81,7 +81,7 @@ class CreditBar(QWidget):
         self.promo_text.setStyleSheet("color: #FFFFFF; font-size: 12px; font-weight: 500; background: transparent; border: none;")
         banner_layout.addWidget(self.promo_text, 1)
 
-        btn_topup_now = QPushButton("Top Up Now")
+        btn_topup_now = QPushButton("เติมเงินเลย")
         btn_topup_now.setObjectName("bannerTopUp")
         btn_topup_now.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_topup_now.setStyleSheet("""
@@ -154,12 +154,12 @@ class CreditBar(QWidget):
         self.credit_label.setObjectName("creditLabel")
         layout.addWidget(self.credit_label)
 
-        credits_text = QLabel("credits")
+        credits_text = QLabel("เครดิต")
         credits_text.setStyleSheet("color: #4A5568; font-size: 11px;")
         layout.addWidget(credits_text)
 
         # Top Up chip
-        self.btn_topup = QPushButton("Top Up")
+        self.btn_topup = QPushButton("เติมเงิน")
         self.btn_topup.setObjectName("topUpChip")
         self.btn_topup.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_topup.setStyleSheet("""
@@ -181,12 +181,12 @@ class CreditBar(QWidget):
         layout.addWidget(self.btn_topup)
 
         # Refresh chip
-        self.btn_refresh = self._make_chip("\u21BB", "Refresh Balance")
+        self.btn_refresh = self._make_chip("\u21BB", "รีเฟรชยอด")
         self.btn_refresh.clicked.connect(self.refresh_clicked.emit)
         layout.addWidget(self.btn_refresh)
 
         # History chip
-        self.btn_history = self._make_chip("History")
+        self.btn_history = self._make_chip("ประวัติ")
         self.btn_history.clicked.connect(self.history_clicked.emit)
         layout.addWidget(self.btn_history)
 
@@ -199,7 +199,7 @@ class CreditBar(QWidget):
         layout.addWidget(self.user_label)
 
         # Logout chip
-        self.btn_logout = self._make_chip("Logout")
+        self.btn_logout = self._make_chip("ออกจากระบบ")
         self.btn_logout.clicked.connect(self.logout_clicked.emit)
         layout.addWidget(self.btn_logout)
 

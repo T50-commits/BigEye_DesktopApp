@@ -33,6 +33,7 @@
 | `app_version` | string | |
 | `metadata.os` | string | |
 | `metadata.registration_ip` | string | |
+| `metadata.notes` | string | |
 
 ---
 
@@ -59,9 +60,9 @@
 | `created_at` | timestamp | |
 | `completed_at` | timestamp/null | |
 | `expires_at` | timestamp | |
-| `client_info.app_version` | string | ❌ ไม่ใช่ `metadata.app_version` |
-| `client_info.model_used` | string | ❌ ไม่ใช่ `metadata.model_used`, `model` |
-| `client_info.hardware_id` | string | |
+| `metadata.app_version` | string | ❌ ไม่ใช่ `client_info.app_version` |
+| `metadata.model_used` | string | ❌ ไม่ใช่ `model`, `client_info.model_used` |
+| `metadata.hardware_id` | string | |
 
 ---
 
@@ -94,15 +95,15 @@
 | `amount_detected` | number/null | ❌ ไม่ใช่ `amount` |
 | `amount_credited` | number/null | ❌ ไม่ใช่ `credit_amount` |
 | `bank_ref` | string/null | ❌ ไม่ใช่ `reference` |
-| `verification_method` | string | `"AUTO_API"` / `"MANUAL"` |
-| `verification_result.provider` | string | |
-| `verification_result.raw_response` | map | |
-| `verification_result.confidence` | number | |
+| `verification_method` | string | `"AUTO_API"` (Slip2Go) / `"AUTO_DEV"` (dev only) / `"MANUAL"` |
+| `verification_result.provider` | string | `"Slip2Go"` |
+| `verification_result.raw_response` | map | Slip2Go full response |
+| `verification_result.confidence` | number | `1.0` for Slip2Go |
 | `reject_reason` | string/null | |
 | `created_at` | timestamp | |
 | `verified_at` | timestamp/null | |
-| `metadata.sender_name` | string/null | |
-| `metadata.receiver_account` | string/null | |
+| `metadata.sender_name` | string/null | จาก Slip2Go `sender.displayName` |
+| `metadata.receiver_account` | string/null | จาก Slip2Go `receiver.account.value` |
 
 ---
 
@@ -148,14 +149,12 @@
 | `severity` | string | `"INFO"` / `"WARNING"` / `"ERROR"` / `"CRITICAL"` |
 | `user_id` | string | |
 | `details` | map | |
-| `ip_address` | string | |
 | `created_at` | timestamp | ❌ ไม่ใช่ `timestamp` |
 
-**event_type values:**
-`USER_REGISTER`, `USER_LOGIN`, `LOGIN_FAILED_DEVICE_MISMATCH`,
-`LOGIN_FAILED_WRONG_PASSWORD`, `TOPUP_SUCCESS`, `TOPUP_REJECTED`,
-`JOB_RESERVED`, `JOB_COMPLETED`, `JOB_REFUNDED`, `JOB_EXPIRED`,
-`CREDIT_ADJUSTED`, `CONFIG_CHANGED`, `PROMPT_UPDATED`, `RATES_UPDATED`
+**event_type values (ที่ Server เขียนจริง):**
+`USER_REGISTER`, `LOGIN_FAILED_DEVICE_MISMATCH`,
+`LOGIN_FAILED_WRONG_PASSWORD`, `TOPUP_SUCCESS`,
+`JOB_RESERVED`, `JOB_COMPLETED`, `JOB_EXPIRED_AUTO_REFUND`
 
 ---
 
@@ -177,7 +176,7 @@
 | `conditions.new_users_only` | boolean | |
 | `conditions.first_topup_only` | boolean | |
 | `conditions.require_code` | boolean | |
-| `reward.type` | string | `"BONUS_CREDITS"` / `"RATE_OVERRIDE"` / `"PERCENTAGE_BONUS"` |
+| `reward.type` | string | `"BONUS_CREDITS"` / `"RATE_OVERRIDE"` / `"PERCENTAGE_BONUS"` / `"TIERED_BONUS"` |
 | `reward.bonus_credits` | number/null | |
 | `reward.override_rate` | number/null | |
 | `reward.bonus_percentage` | number/null | |
@@ -212,8 +211,7 @@
     "user_id": "abc123",
     "full_name": "Test User",
     "email": "test@test.com",
-    "credits": 0,
-    "tier": "standard"
+    "credits": 0
 }
 ```
 
@@ -232,8 +230,7 @@
     "user_id": "abc123",
     "full_name": "Test User",
     "email": "test@test.com",
-    "credits": 500,
-    "tier": "standard"
+    "credits": 500
 }
 ```
 
@@ -313,28 +310,22 @@
 {
     "transactions": [
         {
-            "type": "TOPUP",
+            "date": "2026-02-08 17:00",
+            "description": "Top-up 500 THB → 2000 credits",
             "amount": 2000,
-            "balance_after": 2500,
-            "description": "เติมเงิน 500 บาท → 2,000 เครดิต",
-            "reference_id": "slip_abc123",
-            "created_at": "2026-02-08T10:00:00Z",
-            "metadata": {
-                "baht_amount": 500,
-                "slip_ref": "slip_abc123"
-            }
+            "type": "TOPUP"
         }
-    ]
+    ],
+    "balance": 2500
 }
 ```
 
 | Key | ❌ ห้ามใช้ |
 |:--|:--|
 | `transactions` | `history`, `records`, `items` |
+| `date` | `created_at`, `timestamp` |
 | `amount` | `credits`, `value` |
-| `balance_after` | `remaining`, `balance` |
-| `reference_id` | `slip_id`, `job_id`, `ref` |
-| `metadata.baht_amount` | `amount_thb`, `thb` |
+| `balance` | `remaining`, `credits_remaining` |
 
 ---
 
@@ -480,6 +471,5 @@
 | `bonus_credits` | number | |
 | `total_credits` | number | |
 | `promo_name` | string | |
-| `transaction_id` | string | |
 | `slip_id` | string/null | |
 | `created_at` | timestamp | |

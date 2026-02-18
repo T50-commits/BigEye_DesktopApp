@@ -152,7 +152,7 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
         "created_at": now,
         "completed_at": None,
         "expires_at": expires_at,
-        "client_info": {
+        "metadata": {
             "app_version": req.version,
             "model_used": req.model,
             "hardware_id": user.get("hardware_id", ""),
@@ -166,7 +166,7 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
         "amount": -total_cost,
         "balance_after": new_balance,
         "reference_id": job_token,
-        "description": f"Reserve {req.file_count} files ({req.mode})",
+        "description": f"หักเครดิต {req.file_count} ไฟล์ ({req.mode}) — 📷{photos} ภาพ, 🎬{videos} วิดีโอ",
         "created_at": now,
     })
 
@@ -236,6 +236,7 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
 async def finalize_job(req: FinalizeJobRequest, user: dict = Depends(get_current_user)):
     """
     Finalize a job: calculate actual usage and refund unused credits.
+    Uses Firestore Transaction to prevent double-refund race condition.
     """
     user_id = user["user_id"]
     now = datetime.now(timezone.utc)
@@ -257,7 +258,7 @@ async def finalize_job(req: FinalizeJobRequest, user: dict = Depends(get_current
     job_id = job_doc.id
 
     if job.get("status") in ("COMPLETED", "REFUNDED"):
-        # Already finalized — return existing data
+        # Already finalized — return existing data (idempotent)
         user_doc = users_ref().document(user_id).get()
         current_balance = user_doc.to_dict().get("credits", 0) if user_doc.exists else 0
         return FinalizeJobResponse(
@@ -281,12 +282,8 @@ async def finalize_job(req: FinalizeJobRequest, user: dict = Depends(get_current
     p_rate = job.get("photo_rate", job.get("credit_rate", 3))
     v_rate = job.get("video_rate", p_rate)
     reserved = job.get("reserved_credits", 0)
-    # actual_usage = successful photos × photo_rate + successful videos × video_rate
-    # Client sends req.photos / req.videos as total counts (success+fail).
-    # We use a weighted approach: proportional success across file types.
     total_reported = req.success + req.failed
     if total_reported > 0 and req.photos + req.videos > 0:
-        # Calculate actual usage based on ratio of success files
         success_ratio = req.success / total_reported if total_reported > 0 else 0
         successful_photos = round(req.photos * success_ratio)
         successful_videos = req.success - successful_photos
@@ -300,47 +297,82 @@ async def finalize_job(req: FinalizeJobRequest, user: dict = Depends(get_current
     if refund < 0:
         refund = 0
 
-    # Update job
-    jobs_ref().document(job_id).update({
-        "status": "COMPLETED",
-        "success_count": req.success,
-        "failed_count": req.failed,
-        "photo_count": req.photos,
-        "video_count": req.videos,
-        "actual_usage": actual_usage,
-        "refund_amount": refund,
-        "completed_at": now,
-    })
-
-    # Refund credits
+    # ── Atomic finalize using Firestore Transaction ──
+    # Prevents double-refund race condition (Security Audit H-02)
+    db = firestore.Client()
+    job_ref = jobs_ref().document(job_id)
+    user_ref = users_ref().document(user_id)
     new_balance = 0
-    if refund > 0:
-        users_ref().document(user_id).update({
-            "credits": firestore.Increment(refund),
+
+    @firestore.transactional
+    def finalize_transaction(transaction):
+        nonlocal new_balance
+
+        # Re-read job inside transaction to check status atomically
+        job_snap = job_ref.get(transaction=transaction)
+        if not job_snap.exists:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job_data = job_snap.to_dict()
+
+        # Double-check: if already finalized, abort (another request won the race)
+        if job_data.get("status") in ("COMPLETED", "REFUNDED"):
+            new_balance = -1  # Signal: already finalized
+            return
+
+        # Re-read user credits inside transaction
+        user_snap = user_ref.get(transaction=transaction)
+        if not user_snap.exists:
+            raise HTTPException(status_code=404, detail="User not found")
+        current_credits = user_snap.to_dict().get("credits", 0)
+        new_balance = current_credits + refund
+
+        # Atomically update job status
+        transaction.update(job_ref, {
+            "status": "COMPLETED",
+            "success_count": req.success,
+            "failed_count": req.failed,
+            "photo_count": req.photos,
+            "video_count": req.videos,
+            "actual_usage": actual_usage,
+            "refund_amount": refund,
+            "completed_at": now,
         })
 
-        # Refund transaction
-        user_doc = users_ref().document(user_id).get()
-        new_balance = user_doc.to_dict().get("credits", 0) if user_doc.exists else 0
+        # Atomically update user credits + stats
+        transaction.update(user_ref, {
+            "credits": current_credits + refund,
+            "total_credits_used": user_snap.to_dict().get("total_credits_used", 0) + actual_usage,
+            "last_active": now,
+        })
 
+    try:
+        finalize_transaction(db.transaction())
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Finalize transaction failed: {e}")
+        raise HTTPException(status_code=500, detail="Job finalization failed")
+
+    # If another request already finalized (race condition caught)
+    if new_balance == -1:
+        job_data = job_ref.get().to_dict()
+        user_doc = user_ref.get()
+        return FinalizeJobResponse(
+            refunded=job_data.get("refund_amount", 0),
+            balance=user_doc.to_dict().get("credits", 0) if user_doc.exists else 0,
+        )
+
+    # Create refund transaction record (outside main transaction — not critical)
+    if refund > 0:
         transactions_ref().add({
             "user_id": user_id,
             "type": "REFUND",
             "amount": refund,
             "balance_after": new_balance,
             "reference_id": req.job_token,
-            "description": f"Refund {refund} credits ({req.failed} failed files)",
+            "description": f"คืนเครดิต {refund} ({req.failed} ไฟล์ล้มเหลว)",
             "created_at": now,
         })
-    else:
-        user_doc = users_ref().document(user_id).get()
-        new_balance = user_doc.to_dict().get("credits", 0) if user_doc.exists else 0
-
-    # Update user stats
-    users_ref().document(user_id).update({
-        "total_credits_used": firestore.Increment(actual_usage),
-        "last_active": now,
-    })
 
     # Audit
     audit_logs_ref().add({

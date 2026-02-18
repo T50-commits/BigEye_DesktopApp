@@ -27,7 +27,7 @@ COMBO_BOX_STYLE = """
         font-size: 13px;
     }
     QComboBox:hover {
-        border-color: #264773;
+        border-color: #4f8cff;
     }
     QComboBox:focus {
         border-color: #FF00CC;
@@ -59,22 +59,25 @@ COMBO_VIEW_STYLE = """
         border: none;
         padding: 4px;
         outline: none;
-        selection-background-color: #0F3460;
+        selection-background-color: #3D2066;
         selection-color: #FF00CC;
     }
     QListView::item {
         background: transparent;
-        color: #8892A8;
+        color: #C8D0E0;
         padding: 8px 12px;
         min-height: 20px;
     }
     QListView::item:hover {
-        background: #0F3460;
-        color: #FF00CC;
+        background: #2D3A5E;
+        color: #FFFFFF;
+        border-radius: 4px;
     }
     QListView::item:selected {
-        background: #0F3460;
+        background: #3D2066;
         color: #FF00CC;
+        font-weight: bold;
+        border-radius: 4px;
     }
 """
 

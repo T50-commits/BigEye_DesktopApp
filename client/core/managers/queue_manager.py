@@ -66,15 +66,15 @@ class QueueManager(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._pool = QThreadPool()
-        self._pool.setMaxThreadCount(10)  # 5 image + 2 video + headroom
+        self._pool.setMaxThreadCount(10)  # 5 image + 3 video + headroom
         self._image_semaphore = QSemaphore(5)
-        self._video_semaphore = QSemaphore(2)
+        self._video_semaphore = QSemaphore(3)
         self._stop_event = threading.Event()
         self._completed_count = 0
         self._total_count = 0
         self._lock = threading.Lock()
 
-    def set_concurrency(self, max_images: int = 5, max_videos: int = 2):
+    def set_concurrency(self, max_images: int = 5, max_videos: int = 3):
         """Set concurrency limits from server config."""
         self._image_semaphore = QSemaphore(max_images)
         self._video_semaphore = QSemaphore(max_videos)

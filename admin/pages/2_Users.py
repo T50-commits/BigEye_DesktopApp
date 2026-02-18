@@ -3,6 +3,9 @@ BigEye Pro Admin — หน้าจัดการผู้ใช้
 ค้นหา, ดูข้อมูล, ปรับเครดิต, ระงับ/เปิดบัญชี, รีเซ็ต Hardware ID
 """
 import streamlit as st
+from utils.auth import require_auth
+require_auth()
+
 import pandas as pd
 from datetime import datetime, timezone
 from google.cloud.firestore_v1 import FieldFilter
@@ -147,22 +150,23 @@ for u in users:
     })
 
 df = pd.DataFrame(table_data)
+st.dataframe(df, use_container_width=True, hide_index=True)
 
-event = st.dataframe(
-    df,
-    use_container_width=True,
-    hide_index=True,
-    on_select="rerun",
-    selection_mode="single-row",
+# ── Select user for details ──
+
+user_options = [f"{u.get('email', '—')}  ({u.get('full_name', '—')})" for u in users]
+selected_idx = st.selectbox(
+    "👤 เลือกผู้ใช้เพื่อดูรายละเอียด",
+    range(len(users)),
+    format_func=lambda i: user_options[i],
+    index=None,
+    placeholder="คลิกเพื่อเลือกผู้ใช้...",
 )
 
 # ── User Detail Panel ──
 
-selected_rows = event.selection.rows if event.selection else []
-
-if selected_rows:
-    idx = selected_rows[0]
-    user = users[idx]
+if selected_idx is not None:
+    user = users[selected_idx]
     uid = user.get("uid", "")
 
     st.divider()
@@ -188,7 +192,7 @@ if selected_rows:
     # ── Actions ──
     st.subheader("จัดการ")
 
-    act_col1, act_col2, act_col3 = st.columns(3)
+    act_col1, act_col2, act_col3, act_col4 = st.columns(4)
 
     # Adjust Credits
     with act_col1:
@@ -257,6 +261,36 @@ if selected_rows:
                 st.rerun()
             except Exception as e:
                 st.error(f"ล้มเหลว: {e}")
+
+    # Reset Password
+    with act_col4:
+        st.markdown("**รีเซ็ตรหัสผ่าน**")
+        with st.form(f"reset_pw_{uid}", clear_on_submit=True):
+            new_pw = st.text_input("รหัสผ่านใหม่", type="password", key=f"new_pw_{uid}",
+                                   placeholder="อย่างน้อย 8 ตัวอักษร")
+            reset_hw_too = st.checkbox("รีเซ็ต Hardware ID ด้วย", key=f"reset_hw_too_{uid}")
+            pw_submit = st.form_submit_button("🔑 ตั้งรหัสใหม่")
+
+        if pw_submit and new_pw:
+            if len(new_pw) < 8:
+                st.error("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร")
+            else:
+                try:
+                    from passlib.context import CryptContext
+                    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+                    hashed = pwd_ctx.hash(new_pw)
+                    update_data = {"password_hash": hashed}
+                    if reset_hw_too:
+                        update_data["hardware_id"] = ""
+                    users_ref().document(uid).update(update_data)
+                    msg = "✅ รีเซ็ตรหัสผ่านแล้ว"
+                    if reset_hw_too:
+                        msg += " + รีเซ็ต Hardware ID"
+                    st.success(msg)
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"ล้มเหลว: {e}")
 
     # ── User's History ──
     st.divider()

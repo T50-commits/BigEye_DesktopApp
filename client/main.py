@@ -53,13 +53,19 @@ def main():
         user_name = auth_manager.user_name or "User"
         logger.info(f"Auto-login: {user_name}")
     else:
-        auth = AuthWindow(auth_manager=auth_manager)
-        def on_login(token, name):
-            nonlocal jwt_token, user_name
-            jwt_token, user_name = token, name
-        auth.login_success.connect(on_login)
-        if auth.exec() != AuthWindow.DialogCode.Accepted:
-            sys.exit(0)
+        # Token missing/expired — try auto re-login with saved credentials first
+        if auth_manager.try_auto_relogin():
+            jwt_token = "saved"
+            user_name = auth_manager.user_name or "User"
+            logger.info(f"Auto re-login: {user_name}")
+        else:
+            auth = AuthWindow(auth_manager=auth_manager)
+            def on_login(token, name):
+                nonlocal jwt_token, user_name
+                jwt_token, user_name = token, name
+            auth.login_success.connect(on_login)
+            if auth.exec() != AuthWindow.DialogCode.Accepted:
+                sys.exit(0)
 
     # Main window
     window = MainWindow(user_name=user_name, jwt_token=jwt_token, auth_manager=auth_manager)

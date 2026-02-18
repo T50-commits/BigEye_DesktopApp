@@ -10,11 +10,12 @@ from PySide6.QtWidgets import (
     QLabel, QStackedWidget, QWidget, QGraphicsDropShadowEffect,
     QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal, QSize, QThread, QObject, Slot
+from PySide6.QtCore import Qt, Signal, QSize, QThread, QObject, Slot, QByteArray
 from PySide6.QtGui import (
     QLinearGradient, QColor, QPainter, QBrush, QPen,
-    QFont, QRadialGradient
+    QFont, QRadialGradient, QIcon, QPixmap
 )
+from PySide6.QtSvg import QSvgRenderer
 
 from core.config import AUTH_WINDOW_WIDTH
 from core.auth_manager import AuthManager
@@ -245,11 +246,8 @@ class AuthWindow(QDialog):
         self.signin_email.setMinimumHeight(42)
         form.addWidget(self.signin_email)
 
-        self.signin_password = QLineEdit()
-        self.signin_password.setPlaceholderText("Password")
-        self.signin_password.setEchoMode(QLineEdit.EchoMode.Password)
-        self.signin_password.setMinimumHeight(42)
-        form.addWidget(self.signin_password)
+        self.signin_password, signin_pw_row = self._create_password_field("Password")
+        form.addWidget(signin_pw_row)
 
         form.addSpacing(8)
 
@@ -283,17 +281,11 @@ class AuthWindow(QDialog):
         self.reg_phone.setMinimumHeight(42)
         form.addWidget(self.reg_phone)
 
-        self.reg_password = QLineEdit()
-        self.reg_password.setPlaceholderText("Password")
-        self.reg_password.setEchoMode(QLineEdit.EchoMode.Password)
-        self.reg_password.setMinimumHeight(42)
-        form.addWidget(self.reg_password)
+        self.reg_password, reg_pw_row = self._create_password_field("Password")
+        form.addWidget(reg_pw_row)
 
-        self.reg_confirm = QLineEdit()
-        self.reg_confirm.setPlaceholderText("Confirm Password")
-        self.reg_confirm.setEchoMode(QLineEdit.EchoMode.Password)
-        self.reg_confirm.setMinimumHeight(42)
-        form.addWidget(self.reg_confirm)
+        self.reg_confirm, reg_cf_row = self._create_password_field("Confirm Password")
+        form.addWidget(reg_cf_row)
 
         form.addSpacing(8)
 
@@ -305,6 +297,78 @@ class AuthWindow(QDialog):
         form.addWidget(self.btn_register)
 
         return widget
+
+    def _create_password_field(self, placeholder: str) -> tuple:
+        """Create a password QLineEdit with a show/hide toggle button.
+        Returns (line_edit, container_widget)."""
+        container = QWidget()
+        container.setMinimumHeight(42)
+        row = QHBoxLayout(container)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+
+        line_edit = QLineEdit()
+        line_edit.setPlaceholderText(placeholder)
+        line_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        line_edit.setMinimumHeight(42)
+        # Remove right border radius so toggle button sits flush
+        line_edit.setStyleSheet(
+            line_edit.styleSheet() +
+            "QLineEdit { border-top-right-radius: 0px; border-bottom-right-radius: 0px; }"
+        )
+        row.addWidget(line_edit)
+
+        toggle_btn = QPushButton()
+        toggle_btn.setFixedSize(42, 42)
+        toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        toggle_btn.setStyleSheet("""
+            QPushButton {
+                background: #16213E;
+                border: 1px solid #1A3A6B;
+                border-left: none;
+                border-top-right-radius: 10px;
+                border-bottom-right-radius: 10px;
+            }
+            QPushButton:hover {
+                background: #1A3A6B;
+            }
+        """)
+
+        # Minimal SVG eye icons (outline style)
+        _SVG_EYE_OPEN = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8892A8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>"""
+        _SVG_EYE_CLOSED = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8892A8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>"""
+
+        def _svg_icon(svg_bytes: bytes) -> QIcon:
+            renderer = QSvgRenderer(QByteArray(svg_bytes))
+            pixmap = QPixmap(20, 20)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pixmap)
+            renderer.render(painter)
+            painter.end()
+            return QIcon(pixmap)
+
+        toggle_btn.setIcon(_svg_icon(_SVG_EYE_OPEN))
+        toggle_btn.setIconSize(QSize(20, 20))
+
+        def _toggle():
+            if line_edit.echoMode() == QLineEdit.EchoMode.Password:
+                line_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+                toggle_btn.setIcon(_svg_icon(_SVG_EYE_CLOSED))
+            else:
+                line_edit.setEchoMode(QLineEdit.EchoMode.Password)
+                toggle_btn.setIcon(_svg_icon(_SVG_EYE_OPEN))
+
+        toggle_btn.clicked.connect(_toggle)
+        row.addWidget(toggle_btn)
+
+        return line_edit, container
 
     _TAB_ACTIVE_STYLE = """
         QPushButton {

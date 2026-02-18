@@ -6,11 +6,12 @@ Orchestrates the full processing pipeline:
 import os
 import logging
 import time
+import threading
 
 from PySide6.QtCore import QObject, Signal
 
 from core.config import APP_VERSION, AES_KEY_HEX, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
-from core.api_client import api, APIError, NetworkError
+from core.api_client import api, APIError, NetworkError, MaintenanceError
 from core.engines.gemini_engine import GeminiEngine, GeminiError
 from core.engines.transcoder import Transcoder
 from core.logic.keyword_processor import KeywordProcessor
@@ -50,6 +51,9 @@ class JobManager(QObject):
         self._prompt_template = ""  # raw prompt with {placeholders}
         self._dictionary = ""       # keyword dictionary for iStock
         self._folder_path = ""
+        self._video_queue = []       # ordered list of video filepaths for pipeline
+        self._video_index = 0        # next video to prefetch
+        self._prefetch_lock = threading.Lock()
 
         # Connect queue signals
         self._queue.file_completed.connect(self._on_file_completed)
@@ -138,9 +142,12 @@ class JobManager(QObject):
 
             # ── Step 6: Create context cache if large job ──
             cache_threshold = reserve_data.get("cache_threshold", CACHE_THRESHOLD)
-            if len(files) >= cache_threshold and self._prompt_template:
-                self.status_update.emit("Optimizing batch...")
-                self._engine.create_cache(self._prompt_template)
+            if self._prompt_template:
+                # Always store system_prompt for inline system_instruction fallback
+                self._engine.set_system_prompt(self._prompt_template)
+                if len(files) >= cache_threshold:
+                    self.status_update.emit("Optimizing batch...")
+                    self._engine.create_cache(self._prompt_template)
 
             # ── Step 7: Create video proxies ──
             # (done lazily inside _process_file)
@@ -152,18 +159,36 @@ class JobManager(QObject):
                 self._job_token, len(files), platform, journal_rate,
             )
 
-            # ── Step 9: Start processing via QueueManager ──
+            # ── Step 9: Build video pipeline queue ──
+            self._video_queue = [f for f in files if is_video(f)]
+            self._video_index = 0
+
+            # Pre-upload first video proxy while images start processing
+            if self._video_queue:
+                first_vid = self._video_queue[0]
+                proxy = Transcoder.create_proxy(first_vid)
+                prefetch_path = proxy if proxy else first_vid
+                threading.Thread(
+                    target=self._engine.prefetch_video,
+                    args=(prefetch_path,),
+                    daemon=True,
+                ).start()
+                self._video_index = 1
+
+            # ── Step 10: Start processing via QueueManager ──
             self.status_update.emit("Processing...")
             self._is_running = True
             self._queue.start_queue(files, self._process_file)
 
+        except MaintenanceError as e:
+            self.job_failed.emit("ระบบปิดปรับปรุงชั่วคราว กรุณาลองใหม่ภายหลัง")
         except NetworkError:
-            self.job_failed.emit("Cannot connect to server. Please check your internet.")
+            self.job_failed.emit("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต")
         except APIError as e:
-            self.job_failed.emit(f"Server error: {e}")
+            self.job_failed.emit(str(e))
         except Exception as e:
             logger.error(f"Job start failed: {e}")
-            self.job_failed.emit(f"Failed to start job: {e}")
+            self.job_failed.emit(f"ไม่สามารถเริ่มประมวลผลได้: {e}")
 
     def stop_job(self):
         """Stop the current job gracefully."""
@@ -225,6 +250,10 @@ class JobManager(QObject):
                 self.status_update.emit(f"Uploading / Processing: {filename}")
                 proxy = Transcoder.create_proxy(filepath)
                 process_path = proxy if proxy else filepath
+
+                # Pipeline: prefetch next video while this one generates
+                self._prefetch_next_video()
+
                 result = self._engine.process_video(process_path, prompt)
                 # Cleanup proxy
                 if proxy:
@@ -266,6 +295,24 @@ class JobManager(QObject):
                 "error_type": "UNKNOWN",
                 "processing_time": time.time() - start_time,
             }
+
+    def _prefetch_next_video(self):
+        """Pre-upload the next video proxy in background while current video generates."""
+        with self._prefetch_lock:
+            if self._video_index >= len(self._video_queue):
+                return
+            next_vid = self._video_queue[self._video_index]
+            self._video_index += 1
+
+        def _do_prefetch():
+            try:
+                proxy = Transcoder.create_proxy(next_vid)
+                prefetch_path = proxy if proxy else next_vid
+                self._engine.prefetch_video(prefetch_path)
+            except Exception as e:
+                logger.warning(f"Prefetch thread error: {e}")
+
+        threading.Thread(target=_do_prefetch, daemon=True).start()
 
     def _post_process_keywords(self, keywords: list) -> list:
         """Apply keyword processing based on platform/style settings."""
@@ -346,6 +393,7 @@ class JobManager(QObject):
         self._play_sound()
 
         # ── Cleanup ──
+        self._engine.cleanup_prefetched()
         self._engine.delete_cache()
         self._copyright_guard.clear()
         Transcoder.cleanup_all_proxies()

@@ -14,7 +14,7 @@ class ConfirmDialog(QDialog):
                  model: str, platform: str, cost: int, balance: int, parent=None,
                  photo_rate: int = 0, video_rate: int = 0):
         super().__init__(parent)
-        self.setWindowTitle("Confirm Processing")
+        self.setWindowTitle("ยืนยันการประมวลผล")
         self.setFixedWidth(400)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
         self._setup_ui(file_count, photo_count, video_count, model, platform,
@@ -26,7 +26,7 @@ class ConfirmDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        title = QLabel("Confirm Processing")
+        title = QLabel("ยืนยันการประมวลผล")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #E8E8E8;")
         layout.addWidget(title)
 
@@ -39,9 +39,9 @@ class ConfirmDialog(QDialog):
         info_grid.setSpacing(8)
 
         items = [
-            ("Files", f"{file_count} ({photo_count} photos, {video_count} videos)"),
-            ("Model", model),
-            ("Platform", platform),
+            ("ไฟล์", f"{file_count} (ภาพ {photo_count}, วิดีโอ {video_count})"),
+            ("โมเดล", model),
+            ("แพลตฟอร์ม", platform),
         ]
         for row, (label, value) in enumerate(items):
             lbl = QLabel(label)
@@ -62,20 +62,20 @@ class ConfirmDialog(QDialog):
         cost_grid = QGridLayout(cost_card)
         cost_grid.setSpacing(8)
 
-        cost_lbl = QLabel("Cost")
+        cost_lbl = QLabel("ค่าใช้จ่าย")
         cost_lbl.setStyleSheet("color: #8892A8; font-size: 12px;")
-        cost_text = f"{format_number(cost)} credits"
+        cost_text = f"{format_number(cost)} เครดิต"
         if photo_rate and video_rate and photo_rate != video_rate:
-            cost_text += f"  (\U0001F4F7{photo_count}\u00D7{photo_rate} + \U0001F3AC{video_count}\u00D7{video_rate})"
+            cost_text += f"  (\U0001F4F7 {photo_count}\u00D7{photo_rate} + \U0001F3AC {video_count}\u00D7{video_rate})"
         cost_val = QLabel(cost_text)
         cost_val.setStyleSheet("color: #FFD700; font-size: 12px; font-weight: 700;")
         cost_val.setAlignment(Qt.AlignmentFlag.AlignRight)
         cost_grid.addWidget(cost_lbl, 0, 0)
         cost_grid.addWidget(cost_val, 0, 1)
 
-        after_lbl = QLabel("After deduction")
+        after_lbl = QLabel("หลังหักเครดิต")
         after_lbl.setStyleSheet("color: #8892A8; font-size: 12px;")
-        after_val = QLabel(f"{format_number(balance - cost)} credits")
+        after_val = QLabel(f"{format_number(balance - cost)} เครดิต")
         after_val.setStyleSheet("color: #E8E8E8; font-size: 12px; font-weight: 600;")
         after_val.setAlignment(Qt.AlignmentFlag.AlignRight)
         cost_grid.addWidget(after_lbl, 1, 0)
@@ -92,6 +92,26 @@ class ConfirmDialog(QDialog):
         btn_start.setMinimumHeight(40)
         btn_start.setMinimumWidth(100)
         btn_start.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_start.setStyleSheet("""
+            QPushButton#confirmButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #FF00CC, stop:1 #7B2FFF);
+                border: none;
+                border-radius: 8px;
+                color: #FFFFFF;
+                font-size: 13px;
+                font-weight: 700;
+                padding: 8px 20px;
+            }
+            QPushButton#confirmButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #FF33D6, stop:1 #9B5FFF);
+            }
+            QPushButton#confirmButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #CC00A3, stop:1 #6222CC);
+            }
+        """)
         btn_start.clicked.connect(self.accept)
         btn_row.addWidget(btn_start)
 

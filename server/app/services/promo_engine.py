@@ -323,9 +323,9 @@ def process_topup_with_promo(
     })
 
     # Transaction description
-    desc = f"Top-up {int(topup_baht)} THB → {total_credits} credits"
+    desc = f"เติมเงิน {int(topup_baht)} บาท → {total_credits} เครดิต"
     if applied_promo:
-        desc += f" (incl. {bonus_credits} bonus from '{applied_promo['name']}')"
+        desc += f" (รวมโบนัส {bonus_credits} จากโปร '{applied_promo['name']}')"
 
     # Create transaction record
     tx_ref = transactions_ref().add({
@@ -385,6 +385,112 @@ def process_topup_with_promo(
         "new_balance": new_balance,
         "promo_applied": applied_promo["name"] if applied_promo else None,
     }
+
+
+def apply_welcome_bonus(user_id: str) -> dict | None:
+    """
+    Check for ACTIVE WELCOME_BONUS promos and apply to a newly registered user.
+    Called from auth.register. Returns dict with bonus info or None.
+    """
+    from app.database import users_ref, transactions_ref
+
+    now = datetime.now(timezone.utc)
+
+    promos = list(
+        _promotions_ref()
+        .where("status", "==", "ACTIVE")
+        .stream()
+    )
+
+    for doc in promos:
+        p = doc.to_dict()
+        if p.get("type") != "WELCOME_BONUS":
+            continue
+
+        cond = p.get("conditions", {})
+        reward = p.get("reward", {})
+
+        # Check date range
+        start_date = cond.get("start_date")
+        if start_date:
+            if hasattr(start_date, "timestamp"):
+                if now.timestamp() < start_date.timestamp():
+                    continue
+            elif now < start_date.replace(tzinfo=timezone.utc):
+                continue
+
+        end_date = cond.get("end_date")
+        if end_date:
+            if hasattr(end_date, "timestamp"):
+                if now.timestamp() > end_date.timestamp():
+                    continue
+            elif now > end_date.replace(tzinfo=timezone.utc):
+                continue
+
+        # Check max total redemptions
+        max_redemptions = cond.get("max_redemptions")
+        if max_redemptions:
+            stats = p.get("stats", {})
+            if stats.get("total_redemptions", 0) >= max_redemptions:
+                continue
+
+        # Skip require_code for welcome bonus (auto-applied at registration)
+        # Skip new_users_only check (we know it's a new user since this is called from register)
+
+        # Calculate bonus credits
+        bonus_credits = reward.get("bonus_credits", 0) or 0
+        if bonus_credits <= 0:
+            continue
+
+        # Apply: update user credits
+        users_ref().document(user_id).update({
+            "credits": firestore.Increment(bonus_credits),
+        })
+
+        # Create transaction record
+        transactions_ref().add({
+            "user_id": user_id,
+            "type": "WELCOME_BONUS",
+            "amount": bonus_credits,
+            "balance_after": bonus_credits,
+            "reference_id": doc.id,
+            "description": f"โบนัสสมาชิกใหม่: {p.get('name', '')} +{bonus_credits} เครดิต",
+            "created_at": now,
+            "metadata": {
+                "promo_id": doc.id,
+                "promo_name": p.get("name", ""),
+            },
+        })
+
+        # Record redemption
+        _promo_redemptions_ref().add({
+            "promo_id": doc.id,
+            "user_id": user_id,
+            "topup_baht": 0,
+            "base_credits": 0,
+            "bonus_credits": bonus_credits,
+            "total_credits": bonus_credits,
+            "promo_name": p.get("name", ""),
+            "slip_id": None,
+            "created_at": now,
+        })
+
+        # Update promo stats
+        _promotions_ref().document(doc.id).update({
+            "stats.total_redemptions": firestore.Increment(1),
+            "stats.total_bonus_credits": firestore.Increment(bonus_credits),
+            "stats.unique_users": firestore.Increment(1),
+        })
+
+        logger.info(f"Welcome bonus applied: {user_id} +{bonus_credits} cr (promo: {p.get('name', '')})")
+
+        return {
+            "promo_name": p.get("name", ""),
+            "bonus_credits": bonus_credits,
+            "promo_id": doc.id,
+        }
+
+    return None
 
 
 def expire_promotions() -> int:

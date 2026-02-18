@@ -17,28 +17,82 @@ logger = logging.getLogger("bigeye")
 # Hardware ID
 # ═══════════════════════════════════════
 
+def _get_macos_serial() -> str:
+    """Get macOS IOPlatformSerialNumber (stable, never changes)."""
+    import subprocess
+    try:
+        out = subprocess.check_output(
+            ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+            stderr=subprocess.DEVNULL, timeout=3,
+        ).decode("utf-8", errors="ignore")
+        for line in out.splitlines():
+            if "IOPlatformSerialNumber" in line:
+                return line.split('"')[-2].strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _get_windows_machine_guid() -> str:
+    """Get Windows MachineGuid from registry (stable, set at OS install)."""
+    try:
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Cryptography",
+            0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+        )
+        value, _ = winreg.QueryValueEx(key, "MachineGuid")
+        winreg.CloseKey(key)
+        return value.strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _get_linux_machine_id() -> str:
+    """Get Linux machine-id (stable, set at OS install)."""
+    for path in ["/etc/machine-id", "/var/lib/dbus/machine-id"]:
+        try:
+            with open(path, "r") as f:
+                mid = f.read().strip()
+                if mid:
+                    return mid
+        except Exception:
+            pass
+    return ""
+
+
 def get_hardware_id() -> str:
     """
     Generate a deterministic hardware ID for device binding.
-    Combines hostname, machine architecture, and MAC address.
+    Uses OS-specific stable identifiers (not MAC address which can be randomized).
+    - macOS: IOPlatformSerialNumber
+    - Windows: MachineGuid from registry
+    - Linux: /etc/machine-id
     Returns a 32-character hex string (SHA-256 truncated).
     """
+    import sys
+
+    stable_id = ""
     try:
-        node = platform.node() or "unknown"
-        machine = platform.machine() or "unknown"
-        mac = uuid.getnode()
-        # uuid.getnode() returns a random value if MAC can't be determined;
-        # bit 0 of the first octet is set in that case
-        if (mac >> 40) & 1:
-            mac_str = "no-mac"
+        if sys.platform == "darwin":
+            stable_id = _get_macos_serial()
+        elif sys.platform == "win32":
+            stable_id = _get_windows_machine_guid()
         else:
-            mac_str = str(mac)
-        info = f"{node}-{machine}-{mac_str}"
-        return hashlib.sha256(info.encode("utf-8")).hexdigest()[:32]
+            stable_id = _get_linux_machine_id()
     except Exception as e:
-        logger.warning(f"Hardware ID generation fallback: {e}")
-        fallback = f"{platform.node()}-{uuid.getnode()}"
-        return hashlib.sha256(fallback.encode("utf-8")).hexdigest()[:32]
+        logger.warning(f"Hardware ID OS-specific lookup failed: {e}")
+
+    if stable_id:
+        info = f"bigeye-hw-{sys.platform}-{stable_id}"
+    else:
+        # Fallback: hostname + machine arch (less stable but better than MAC)
+        logger.warning("Using fallback hardware ID (hostname+arch)")
+        info = f"bigeye-hw-{platform.node()}-{platform.machine()}"
+
+    return hashlib.sha256(info.encode("utf-8")).hexdigest()[:32]
 
 
 # ═══════════════════════════════════════

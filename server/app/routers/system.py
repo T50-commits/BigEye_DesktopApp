@@ -6,7 +6,7 @@ POST /system/cleanup-expired-jobs, POST /system/generate-daily-report
 import logging
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from google.cloud import firestore
 
 from app.models import CheckUpdateRequest, CheckUpdateResponse, HealthResponse
@@ -18,6 +18,20 @@ from app.config import settings
 
 logger = logging.getLogger("bigeye-api")
 router = APIRouter(prefix="/system", tags=["System"])
+
+
+async def verify_scheduler_or_admin(request: Request):
+    """Allow only Cloud Scheduler or admin with API key.
+    Cloud Scheduler sends X-CloudScheduler: true header.
+    Admin can send X-Admin-Key header matching ADMIN_SCHEDULER_KEY env var."""
+    # Check Cloud Scheduler header (set by Google Cloud Scheduler)
+    if request.headers.get("X-CloudScheduler") == "true":
+        return True
+    # Check admin API key
+    admin_key = getattr(settings, "ADMIN_SCHEDULER_KEY", "")
+    if admin_key and request.headers.get("X-Admin-Key") == admin_key:
+        return True
+    raise HTTPException(status_code=403, detail="Not authorized — scheduler or admin key required")
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -71,7 +85,7 @@ async def check_update(req: CheckUpdateRequest):
 
 
 @router.post("/cleanup-expired-jobs")
-async def cleanup_expired_jobs():
+async def cleanup_expired_jobs(_=Depends(verify_scheduler_or_admin)):
     """
     Cleanup expired RESERVED jobs — auto-refund unused credits.
     Called by Cloud Scheduler every hour.
@@ -79,12 +93,24 @@ async def cleanup_expired_jobs():
     now = datetime.now(timezone.utc)
     count = 0
 
-    expired_docs = (
+    # Jobs with expires_at set
+    expired_docs = list(
         jobs_ref()
         .where("status", "==", "RESERVED")
         .where("expires_at", "<", now)
         .stream()
     )
+
+    # Also catch old jobs without expires_at — use created_at + JOB_EXPIRE_HOURS
+    fallback_cutoff = now - timedelta(hours=settings.JOB_EXPIRE_HOURS)
+    expired_ids = {doc.id for doc in expired_docs}
+    for doc in jobs_ref().where("status", "==", "RESERVED").stream():
+        if doc.id not in expired_ids:
+            d = doc.to_dict()
+            if not d.get("expires_at"):
+                created = d.get("created_at")
+                if created and created < fallback_cutoff:
+                    expired_docs.append(doc)
 
     for doc in expired_docs:
         job = doc.to_dict()
@@ -108,7 +134,7 @@ async def cleanup_expired_jobs():
                 "amount": reserved,
                 "balance_after": balance,
                 "reference_id": job.get("job_token", ""),
-                "description": f"Auto-refund expired job ({reserved} credits)",
+                "description": f"คืนเครดิตอัตโนมัติ (งานหมดอายุ) — {reserved} เครดิต",
                 "created_at": now,
             })
 
@@ -134,7 +160,7 @@ async def cleanup_expired_jobs():
 
 
 @router.post("/generate-daily-report")
-async def generate_daily_report():
+async def generate_daily_report(_=Depends(verify_scheduler_or_admin)):
     """
     Generate daily report. Called by Cloud Scheduler at midnight.
     """
@@ -189,7 +215,7 @@ async def generate_daily_report():
 
 
 @router.post("/expire-promotions")
-async def expire_promotions_endpoint():
+async def expire_promotions_endpoint(_=Depends(verify_scheduler_or_admin)):
     """
     Auto-expire promotions past end_date.
     Called by Cloud Scheduler every hour.

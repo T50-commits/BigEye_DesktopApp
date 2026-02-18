@@ -129,13 +129,14 @@ class APIClient:
         return data.get("credits", 0)
 
     def get_balance_with_promos(self) -> dict:
-        """GET /credit/balance — returns full response with credits + active_promos + credit_rates."""
+        """GET /credit/balance — returns full response with credits + active_promos + credit_rates + bank_info."""
         data = self._get("/credit/balance")
         return {
             "credits": data.get("credits", 0),
             "exchange_rate": data.get("exchange_rate", 4),
             "credit_rates": data.get("credit_rates", {}),
             "active_promos": data.get("active_promos", []),
+            "bank_info": data.get("bank_info", {}),
         }
 
     def get_history(self, limit: int = 50) -> list:
@@ -143,11 +144,12 @@ class APIClient:
         data = self._get("/credit/history", params={"limit": limit})
         return data.get("transactions", [])
 
-    def topup(self, slip_base64: str, amount: int) -> dict:
-        """POST /credit/topup — submit payment slip."""
-        return self._post("/credit/topup", {
-            "slip": slip_base64, "amount": amount,
-        })
+    def topup(self, qr_data: str, promo_code: str = "") -> dict:
+        """POST /credit/topup — submit slip QR code data for verification."""
+        payload = {"slip": qr_data}
+        if promo_code:
+            payload["promo_code"] = promo_code
+        return self._post("/credit/topup", payload)
 
     # ── Jobs ──
 
@@ -210,7 +212,22 @@ class APIClient:
         except Exception:
             body = {}
 
-        msg = body.get("detail", body.get("message", f"HTTP {resp.status_code}"))
+        # User-friendly fallback messages by status code
+        _friendly = {
+            400: "ข้อมูลที่ส่งไม่ถูกต้อง กรุณาลองใหม่",
+            401: "กรุณาเข้าสู่ระบบใหม่",
+            402: "เครดิตไม่เพียงพอ",
+            403: "ไม่มีสิทธิ์เข้าถึง",
+            404: "ไม่พบข้อมูลที่ร้องขอ",
+            409: "ข้อมูลซ้ำ กรุณาตรวจสอบ",
+            422: "ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบ",
+            429: "คำขอถี่เกินไป กรุณารอสักครู่",
+            500: "เซิร์ฟเวอร์ขัดข้อง กรุณาลองใหม่ภายหลัง",
+            502: "เซิร์ฟเวอร์ไม่ตอบสนอง กรุณาลองใหม่",
+            503: "ระบบปิดปรับปรุงชั่วคราว",
+        }
+        fallback = _friendly.get(resp.status_code, f"เกิดข้อผิดพลาด (รหัส {resp.status_code})")
+        msg = body.get("detail", body.get("message", fallback))
         logger.warning(f"API error {resp.status_code}: {msg}")
 
         if resp.status_code == 401:

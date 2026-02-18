@@ -3,6 +3,9 @@ BigEye Pro Admin — หน้าตั้งค่าระบบ
 เวอร์ชันแอป, อัตราเครดิต, การประมวลผล, โหมดปิดปรับปรุง, พรอมต์, คำต้องห้าม
 """
 import streamlit as st
+from utils.auth import require_auth
+require_auth()
+
 from datetime import datetime, timezone
 
 from utils.firestore_client import system_config_ref
@@ -137,6 +140,57 @@ with st.form("rates_form"):
         })
         st.success("✅ บันทึกอัตราเครดิตแล้ว")
         st.rerun()
+
+st.divider()
+
+# ═══════════════════════════════════════
+# 2.5 Bank Account Info (for top-up display)
+# ═══════════════════════════════════════
+
+st.subheader("🏦 บัญชีธนาคารรับเงิน")
+st.caption("ข้อมูลนี้จะแสดงในหน้าเติมเงินของแอป เพื่อให้ผู้ใช้โอนเงินมาถูกบัญชี")
+
+bank_config = _settings.get("bank_info", {})
+
+with st.form("bank_form"):
+    b_col1, b_col2 = st.columns(2)
+    with b_col1:
+        bank_name = st.text_input(
+            "ชื่อธนาคาร",
+            value=bank_config.get("bank_name", ""),
+            placeholder="เช่น ธนาคารกสิกรไทย",
+        )
+        account_number = st.text_input(
+            "เลขที่บัญชี",
+            value=bank_config.get("account_number", ""),
+            placeholder="เช่น 123-4-56789-0",
+        )
+    with b_col2:
+        account_name = st.text_input(
+            "ชื่อบัญชี",
+            value=bank_config.get("account_name", ""),
+            placeholder="เช่น นายสมชาย ใจดี",
+        )
+
+    if st.form_submit_button("💾 บันทึกข้อมูลธนาคาร"):
+        save_app_settings({
+            "bank_info": {
+                "bank_name": bank_name.strip(),
+                "account_number": account_number.strip(),
+                "account_name": account_name.strip(),
+            },
+        })
+        st.success("✅ บันทึกข้อมูลธนาคารแล้ว — จะแสดงในแอปทันที")
+        st.rerun()
+
+if bank_config.get("bank_name"):
+    st.info(
+        f"**ข้อมูลปัจจุบัน:** {bank_config.get('bank_name')}  "
+        f"{bank_config.get('account_number', '—')}  "
+        f"({bank_config.get('account_name', '—')})"
+    )
+else:
+    st.warning("⚠️ ยังไม่ได้ตั้งค่าข้อมูลธนาคาร — ผู้ใช้จะเห็น 'ยังไม่ได้ตั้งค่า' ในหน้าเติมเงิน")
 
 st.divider()
 

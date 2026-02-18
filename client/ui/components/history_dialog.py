@@ -12,7 +12,7 @@ from utils.helpers import format_number
 class HistoryDialog(QDialog):
     def __init__(self, transactions: list = None, balance: int = 0, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Credit History")
+        self.setWindowTitle("ประวัติเครดิต")
         self.setFixedWidth(520)
         self.setMinimumHeight(400)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
@@ -23,14 +23,14 @@ class HistoryDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        title = QLabel("\U0001F4DC Credit History")
+        title = QLabel("\U0001F4DC ประวัติเครดิต")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #E8E8E8;")
         layout.addWidget(title)
 
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Date", "Transaction", "Amount"])
+        self.table.setHorizontalHeaderLabels(["วันที่", "รายการ", "จำนวน"])
         self.table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.ResizeToContents
         )
@@ -80,17 +80,17 @@ class HistoryDialog(QDialog):
         )
         bl = QHBoxLayout(bal_widget)
         bl.setContentsMargins(12, 4, 12, 4)
-        blbl = QLabel("Balance:")
+        blbl = QLabel("ยอดคงเหลือ:")
         blbl.setStyleSheet("color: #8892A8; font-size: 13px;")
         bl.addWidget(blbl)
         bl.addStretch()
-        bval = QLabel(f"{format_number(balance)} credits")
+        bval = QLabel(f"{format_number(balance)} เครดิต")
         bval.setStyleSheet("color: #FFD700; font-size: 14px; font-weight: 700;")
         bl.addWidget(bval)
         layout.addWidget(bal_widget)
 
         # Close
-        btn = QPushButton("Close")
+        btn = QPushButton("ปิด")
         btn.setMinimumHeight(40)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(self.accept)

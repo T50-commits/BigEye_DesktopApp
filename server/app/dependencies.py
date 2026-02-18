@@ -39,7 +39,7 @@ async def get_current_user(
     user = doc.to_dict()
     user["user_id"] = doc.id
 
-    if user.get("status") == "banned":
+    if user.get("status") in ("banned", "suspended"):
         raise HTTPException(status_code=403, detail="Account suspended")
 
     return user

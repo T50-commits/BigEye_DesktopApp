@@ -2,17 +2,9 @@
 BigEye Pro — Helper Utilities
 """
 import os
-import platform
-import hashlib
-import uuid
 
 from core.config import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
-
-
-def get_hardware_id() -> str:
-    """Generate a unique hardware ID for device binding."""
-    info = f"{platform.node()}-{platform.machine()}-{uuid.getnode()}"
-    return hashlib.sha256(info.encode()).hexdigest()[:32]
+from utils.security import get_hardware_id  # noqa: F401 — re-export for backward compat
 
 
 def is_image(filepath: str) -> bool:

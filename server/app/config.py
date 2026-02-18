@@ -17,15 +17,17 @@ class Settings(BaseSettings):
     # AES-256 key (hex, 64 chars = 32 bytes)
     AES_KEY: str = "0000000000000000000000000000000000000000000000000000000000000000"
 
-    # Slip verification
-    SLIP_VERIFY_URL: str = ""
-    SLIP_API_KEY: str = ""
+    # Slip2Go verification
+    SLIP2GO_API_URL: str = "https://connect.slip2go.com"
+    SLIP2GO_SECRET_KEY: str = ""
+    SLIP2GO_RECEIVER_NAME: str = "พงษ์เทพ,Pongtep"
 
     # LINE Notify
     LINE_NOTIFY_TOKEN: str = ""
 
     # Admin
     ADMIN_UIDS: str = ""
+    ADMIN_SCHEDULER_KEY: str = ""
 
     # App
     APP_VERSION: str = "2.0.0"

@@ -45,6 +45,7 @@ class StartupWorker(QObject):
     balance_loaded = Signal(int)
     promos_loaded = Signal(list)
     rates_loaded = Signal(dict)
+    bank_info_loaded = Signal(dict)
     update_available = Signal(dict)
     recovery_found = Signal(dict)
     maintenance = Signal(str)
@@ -88,6 +89,7 @@ class StartupWorker(QObject):
             self.balance_loaded.emit(data.get("credits", 0))
             self.promos_loaded.emit(data.get("active_promos", []))
             self.rates_loaded.emit(data.get("credit_rates", {}))
+            self.bank_info_loaded.emit(data.get("bank_info", {}))
         except Exception as e:
             logger.debug(f"Balance load skipped: {e}")
 
@@ -236,6 +238,7 @@ class MainWindow(QMainWindow):
         self._startup_worker.balance_loaded.connect(self.credit_bar.set_balance)
         self._startup_worker.promos_loaded.connect(self.credit_bar.set_promos)
         self._startup_worker.rates_loaded.connect(self._on_rates_loaded)
+        self._startup_worker.bank_info_loaded.connect(self._on_bank_info_loaded)
         self._startup_worker.update_available.connect(self._on_update_available)
         self._startup_worker.recovery_found.connect(self._on_recovery_found)
         self._startup_worker.maintenance.connect(self._on_maintenance)
@@ -258,8 +261,12 @@ class MainWindow(QMainWindow):
         dialog = RecoveryDialog(info, self)
         dialog.exec()
 
+    def _on_bank_info_loaded(self, bank_info: dict):
+        """Store bank_info from server for use in TopUpDialog."""
+        self._bank_info = bank_info
+
     def _on_maintenance(self, message: str):
-        dialog = MaintenanceDialog(self)
+        dialog = MaintenanceDialog(self, message=message, force_close=True)
         dialog.exec()
 
     def _cleanup_startup(self):
@@ -286,12 +293,12 @@ class MainWindow(QMainWindow):
         """Validate and start processing."""
         file_list = self.gallery.get_file_list()
         if not file_list:
-            QMessageBox.warning(self, "No Files", "Please open a folder with media files first.")
+            QMessageBox.warning(self, "ไม่พบไฟล์", "กรุณาเปิดโฟลเดอร์ที่มีไฟล์ภาพหรือวิดีโอก่อน")
             return
 
         api_key = self.sidebar.get_api_key()
         if not api_key:
-            QMessageBox.warning(self, "No API Key", "Please enter and save your Gemini API key.")
+            QMessageBox.warning(self, "ไม่พบ API Key", "กรุณากรอกและบันทึก Gemini API Key ก่อน")
             return
 
         settings = self.sidebar.get_settings()
@@ -327,6 +334,11 @@ class MainWindow(QMainWindow):
 
     def _begin_processing(self, file_list: list):
         """Begin processing via JobManager on a background thread."""
+        # Clear previous results before starting new job
+        self._results.clear()
+        self.inspector.clear()
+        self.gallery.reset_file_statuses()
+
         self._is_processing = True
         self._set_processing_state(True)
         self.inspector.enable_export(False)
@@ -334,9 +346,9 @@ class MainWindow(QMainWindow):
 
         # Show immediate feedback: indeterminate progress + "Preparing..."
         self.gallery.progress_bar.setMaximum(0)  # indeterminate animation
-        self.gallery.progress_text.setText("Checking credits...")
+        self.gallery.progress_text.setText("กำลังตรวจสอบเครดิต...")
         self.gallery.progress_percent.setText("")
-        self.status_bar.showMessage(f"Checking credits... ({len(file_list)} files)")
+        self.status_bar.showMessage(f"กำลังตรวจสอบเครดิต... ({len(file_list)} ไฟล์)")
 
         # Fresh JobManager each run to avoid dead-thread affinity issues
         self._job_manager = JobManager()
@@ -386,7 +398,7 @@ class MainWindow(QMainWindow):
         # Switch from indeterminate to determinate on first progress update
         if self.gallery.progress_bar.maximum() == 0:
             self.gallery.progress_bar.setMaximum(100)
-            self.status_bar.showMessage(f"Processing {total} files...")
+            self.status_bar.showMessage(f"กำลังประมวลผล {total} ไฟล์...")
         self.gallery.update_progress(current, total)
 
     def _on_job_completed(self, summary: dict):
@@ -409,7 +421,7 @@ class MainWindow(QMainWindow):
         self.credit_bar.set_balance(balance)
         self.gallery.update_progress(self._process_total, self._process_total)
         self.status_bar.showMessage(
-            f"Complete — {successful} successful, {failed} failed"
+            f"เสร็จสิ้น — สำเร็จ {successful} ไฟล์, ล้มเหลว {failed} ไฟล์"
         )
 
         # Enable Re-export button after auto-save
@@ -434,8 +446,8 @@ class MainWindow(QMainWindow):
         self._disconnect_job_signals()
         self._cleanup_job_thread()
 
-        QMessageBox.critical(self, "Processing Failed", error_message)
-        self.status_bar.showMessage("Processing failed")
+        QMessageBox.critical(self, "ประมวลผลล้มเหลว", error_message)
+        self.status_bar.showMessage("ประมวลผลล้มเหลว")
 
     def _disconnect_job_signals(self):
         """Safely disconnect JobManager signals."""
@@ -466,8 +478,8 @@ class MainWindow(QMainWindow):
         if not self._is_processing:
             return
         reply = QMessageBox.question(
-            self, "Stop Processing",
-            "Are you sure you want to stop processing?\nUnprocessed files will not be charged.",
+            self, "หยุดประมวลผล",
+            "คุณต้องการหยุดประมวลผลใช่หรือไม่?\nไฟล์ที่ยังไม่ได้ประมวลผลจะได้รับเครดิตคืน",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -477,7 +489,7 @@ class MainWindow(QMainWindow):
             self.gallery.reset_progress()
             self._disconnect_job_signals()
             self._cleanup_job_thread()
-            self.status_bar.showMessage("Processing stopped")
+            self.status_bar.showMessage("หยุดประมวลผลแล้ว")
 
     def _on_escape(self):
         if self._is_processing:
@@ -501,7 +513,7 @@ class MainWindow(QMainWindow):
         self.inspector.enable_export(False)
         self._update_cost_estimate()
         self.status_bar.showMessage(
-            f"Loaded {len(file_list)} files from {folder_path}"
+            f"โหลด {len(file_list)} ไฟล์จาก {folder_path}"
         )
 
     def _on_platform_changed(self, text: str):
@@ -551,7 +563,7 @@ class MainWindow(QMainWindow):
         from core.data.csv_exporter import CSVExporter
 
         if not self._results:
-            self.status_bar.showMessage("No results to export")
+            self.status_bar.showMessage("ไม่มีผลลัพธ์ให้ส่งออก")
             return
 
         # Default to the current gallery folder
@@ -587,21 +599,21 @@ class MainWindow(QMainWindow):
 
         if csv_files:
             names = [os.path.basename(f) for f in csv_files]
-            self.status_bar.showMessage(f"CSV re-exported: {', '.join(names)}")
+            self.status_bar.showMessage(f"ส่งออก CSV ใหม่แล้ว: {', '.join(names)}")
             logger.info(f"Re-export CSV: {csv_files}")
         else:
-            self.status_bar.showMessage("No successful results to export")
+            self.status_bar.showMessage("ไม่มีผลลัพธ์ที่สำเร็จให้ส่งออก")
 
     def _on_save_api_key(self, key: str):
         """Save API key to system keyring."""
         save_to_keyring(KEYRING_SERVICE, KEYRING_API_KEY, key)
-        self.status_bar.showMessage("API key saved")
+        self.status_bar.showMessage("บันทึก API key แล้ว")
         logger.info("API key saved to keyring")
 
     def _on_clear_api_key(self):
         """Clear API key from system keyring."""
         delete_from_keyring(KEYRING_SERVICE, KEYRING_API_KEY)
-        self.status_bar.showMessage("API key cleared")
+        self.status_bar.showMessage("ล้าง API key แล้ว")
         logger.info("API key cleared from keyring")
 
     def _on_rates_loaded(self, rates: dict):
@@ -634,17 +646,21 @@ class MainWindow(QMainWindow):
             data = api.get_balance_with_promos()
             self.credit_bar.set_balance(data.get("credits", 0))
             self.credit_bar.set_promos(data.get("active_promos", []))
+            self._bank_info = data.get("bank_info", {})
             self._on_rates_loaded(data.get("credit_rates", {}))
             self._update_cost_estimate()
-            self.status_bar.showMessage("Balance refreshed")
+            self.status_bar.showMessage("รีเฟรชยอดเรียบร้อย")
+        except MaintenanceError as e:
+            self._on_maintenance(str(e))
         except NetworkError:
-            self.status_bar.showMessage("Cannot connect to server")
+            self.status_bar.showMessage("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้")
         except APIError as e:
-            self.status_bar.showMessage(f"Error: {e}")
+            self.status_bar.showMessage(f"เกิดข้อผิดพลาด: {e}")
 
     def _on_topup(self):
         promos = self.credit_bar.get_active_promos()
-        dialog = TopUpDialog(self, promos=promos)
+        bank_info = getattr(self, "_bank_info", {})
+        dialog = TopUpDialog(self, promos=promos, bank_info=bank_info)
         dialog.exec()
 
     def _on_history(self):
@@ -659,8 +675,8 @@ class MainWindow(QMainWindow):
 
     def _on_logout(self):
         reply = QMessageBox.question(
-            self, "Logout",
-            "Are you sure you want to logout?",
+            self, "ออกจากระบบ",
+            "คุณต้องการออกจากระบบใช่หรือไม่?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:

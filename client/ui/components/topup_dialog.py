@@ -1,97 +1,229 @@
 """
 BigEye Pro — Top-Up Dialog
+Slip2Go QR-code verification flow:
+  1. User drops/selects a payment slip image
+  2. OpenCV decodes the QR code from the image
+  3. User clicks "Verify & Top Up"
+  4. Server verifies QR data with Slip2Go API → credits user automatically
 """
+import logging
+import threading
+
+import cv2
+import numpy as np
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QWidget, QLineEdit, QFrame
+    QWidget, QLineEdit, QFrame, QApplication,
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtCore import Qt, Signal, QMetaObject, Q_ARG, Slot
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QImage
+
+from core.api_client import api
+
+logger = logging.getLogger("bigeye-client")
+
+_STYLE_DROP_IDLE = (
+    "border: 2px dashed #264773; border-radius: 12px; "
+    "background: #16213E; color: #8892A8; font-size: 12px;"
+)
+_STYLE_DROP_HOVER = (
+    "border: 2px dashed #FF00CC; border-radius: 12px; "
+    "background: #FF00CC10; color: #FF00CC; font-size: 12px;"
+)
 
 
-class DropZone(QFrame):
-    """Drag-and-drop zone for payment slip."""
-    file_dropped = Signal(str)
+def decode_qr_from_image(filepath: str) -> str | None:
+    """Read an image file and try to decode a QR code using OpenCV."""
+    try:
+        img = cv2.imread(filepath)
+        if img is None:
+            return None
+        detector = cv2.QRCodeDetector()
+        data, _, _ = detector.detectAndDecode(img)
+        if data:
+            return data
+        # Retry with grayscale + threshold for low-quality images
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        data, _, _ = detector.detectAndDecode(thresh)
+        return data if data else None
+    except Exception as e:
+        logger.warning(f"QR decode failed: {e}")
+        return None
+
+
+class SlipDropZone(QFrame):
+    """Drag-and-drop zone for payment slip image. Decodes QR automatically."""
+    qr_decoded = Signal(str)   # emitted with QR data on success
+    qr_failed = Signal()       # emitted when no QR found
+    file_selected = Signal(str)  # emitted with filepath
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
-        self.setMinimumHeight(100)
-        self.setStyleSheet(
-            "border: 2px dashed #264773; border-radius: 12px; "
-            "background: #16213E; color: #8892A8; font-size: 12px;"
-        )
+        self.setMinimumHeight(140)
+        self.setStyleSheet(_STYLE_DROP_IDLE)
         self._filepath = ""
+        self._qr_data = ""
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label = QLabel("\U0001F4CE Drop payment slip here\nor click to browse")
+        layout.setSpacing(8)
+
+        self.icon_label = QLabel("\U0001F4F7")
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.icon_label.setStyleSheet("font-size: 28px; border: none; background: transparent;")
+        layout.addWidget(self.icon_label)
+
+        self.label = QLabel("ลากรูปสลิปมาวางที่นี่\nหรือคลิกเพื่อเลือกไฟล์")
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.setStyleSheet("color: #8892A8; font-size: 12px; border: none;")
+        self.label.setStyleSheet("color: #8892A8; font-size: 12px; border: none; background: transparent;")
         layout.addWidget(self.label)
+
+        self.qr_status = QLabel("")
+        self.qr_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.qr_status.setStyleSheet("font-size: 11px; border: none; background: transparent;")
+        self.qr_status.hide()
+        layout.addWidget(self.qr_status)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.setStyleSheet(
-                "border: 2px dashed #FF00CC; border-radius: 12px; "
-                "background: #FF00CC10; color: #FF00CC; font-size: 12px;"
-            )
+            self.setStyleSheet(_STYLE_DROP_HOVER)
 
     def dragLeaveEvent(self, event):
-        self.setStyleSheet(
-            "border: 2px dashed #264773; border-radius: 12px; "
-            "background: #16213E; color: #8892A8; font-size: 12px;"
-        )
+        self.setStyleSheet(_STYLE_DROP_IDLE)
 
     def dropEvent(self, event: QDropEvent):
+        self.setStyleSheet(_STYLE_DROP_IDLE)
         urls = event.mimeData().urls()
         if urls:
-            path = urls[0].toLocalFile()
-            self._filepath = path
-            self.label.setText(f"\u2705 {path.split('/')[-1]}")
-            self.label.setStyleSheet("color: #00E396; font-size: 12px; border: none;")
-            self.file_dropped.emit(path)
-        self.setStyleSheet(
-            "border: 2px dashed #264773; border-radius: 12px; "
-            "background: #16213E; color: #8892A8; font-size: 12px;"
-        )
+            self._process_file(urls[0].toLocalFile())
 
     def mousePressEvent(self, event):
         from PySide6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select Payment Slip", "",
-            "Images (*.png *.jpg *.jpeg *.pdf)"
+            self, "เลือกรูปสลิปการโอน", "",
+            "รูปภาพ (*.png *.jpg *.jpeg *.bmp *.webp)"
         )
         if path:
-            self._filepath = path
-            self.label.setText(f"\u2705 {path.split('/')[-1]}")
-            self.label.setStyleSheet("color: #00E396; font-size: 12px; border: none;")
-            self.file_dropped.emit(path)
+            self._process_file(path)
+
+    def _process_file(self, path: str):
+        self._filepath = path
+        self._qr_data = ""
+        filename = path.split("/")[-1].split("\\")[-1]
+        self.label.setText(f"\u2705 {filename}")
+        self.label.setStyleSheet("color: #00E396; font-size: 12px; border: none; background: transparent;")
+        self.qr_status.setText("\u23F3 กำลังสแกน QR code...")
+        self.qr_status.setStyleSheet("color: #FEB019; font-size: 11px; border: none; background: transparent;")
+        self.qr_status.show()
+        self.file_selected.emit(path)
+
+        # Decode QR in background thread to keep UI responsive
+        threading.Thread(target=self._decode_qr, args=(path,), daemon=True).start()
+
+    def _decode_qr(self, path: str):
+        qr = decode_qr_from_image(path)
+        if qr:
+            self._qr_data = qr
+            QMetaObject.invokeMethod(
+                self, "_on_qr_success", Qt.ConnectionType.QueuedConnection,
+            )
+        else:
+            QMetaObject.invokeMethod(
+                self, "_on_qr_fail", Qt.ConnectionType.QueuedConnection,
+            )
+
+    @Slot()
+    def _on_qr_success(self):
+        self.qr_status.setText("\u2705 พบ QR Code แล้ว")
+        self.qr_status.setStyleSheet("color: #00E396; font-size: 11px; border: none; background: transparent;")
+        self.icon_label.setText("\u2705")
+        self.setStyleSheet(
+            "border: 2px solid #00E396; border-radius: 12px; "
+            "background: #16213E; color: #00E396; font-size: 12px;"
+        )
+        self.qr_decoded.emit(self._qr_data)
+
+    @Slot()
+    def _on_qr_fail(self):
+        self.qr_status.setText("\u274C ไม่พบ QR Code — ลองใช้รูปที่ชัดกว่านี้")
+        self.qr_status.setStyleSheet("color: #FF4560; font-size: 11px; border: none; background: transparent;")
+        self.icon_label.setText("\u274C")
+        self.setStyleSheet(
+            "border: 2px solid #FF4560; border-radius: 12px; "
+            "background: #16213E; color: #FF4560; font-size: 12px;"
+        )
+        self.qr_failed.emit()
+
+    def get_qr_data(self) -> str:
+        return self._qr_data
 
     def get_filepath(self) -> str:
         return self._filepath
 
 
 class TopUpDialog(QDialog):
-    def __init__(self, parent=None, promos: list = None):
+    def __init__(self, parent=None, promos: list = None, bank_info: dict = None):
         super().__init__(parent)
-        self.setWindowTitle("Top Up Credits")
-        self.setFixedWidth(460)
+        self.setWindowTitle("เติมเครดิต")
+        self.setFixedWidth(480)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
         self._promos = promos or []
+        self._bank_info = bank_info or {}
+        self._qr_ready = False
+        self._submitting = False
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
 
-        title = QLabel("\U0001FA99 Top Up Credits")
+        # ── Title ──
+        title = QLabel("\U0001FA99 เติมเครดิต")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #E8E8E8;")
         layout.addWidget(title)
 
-        # Bank info card
+        # ── How it works ──
+        steps = QWidget()
+        steps.setStyleSheet(
+            "background: #16213E; border: 1px solid #1A3A6B; "
+            "border-radius: 10px; padding: 14px;"
+        )
+        sl = QVBoxLayout(steps)
+        sl.setSpacing(4)
+
+        how_title = QLabel("ขั้นตอนการเติมเงิน")
+        how_title.setStyleSheet(
+            "color: #8892A8; font-size: 10px; font-weight: 600; "
+            "letter-spacing: 1.2px; border: none;"
+        )
+        sl.addWidget(how_title)
+
+        for num, text in [
+            ("1", "โอนเงินไปยังบัญชีธนาคารด้านล่าง"),
+            ("2", "แคปหน้าจอสลิปการโอน"),
+            ("3", "ลากรูปสลิปมาวางที่นี่ — ระบบอ่าน QR อัตโนมัติ"),
+            ("4", "กด 'ตรวจสอบและเติมเงิน' — เครดิตเข้าทันที"),
+        ]:
+            step_row = QHBoxLayout()
+            num_lbl = QLabel(num)
+            num_lbl.setFixedWidth(18)
+            num_lbl.setStyleSheet(
+                "color: #FFD700; font-size: 11px; font-weight: 700; border: none;"
+            )
+            txt_lbl = QLabel(text)
+            txt_lbl.setStyleSheet("color: #C8C8D8; font-size: 11px; border: none;")
+            step_row.addWidget(num_lbl)
+            step_row.addWidget(txt_lbl)
+            step_row.addStretch()
+            sl.addLayout(step_row)
+
+        layout.addWidget(steps)
+
+        # ── Bank info card ──
         bank = QWidget()
         bank.setStyleSheet(
             "background: #16213E; border: 1px solid #1A3A6B; "
@@ -100,20 +232,25 @@ class TopUpDialog(QDialog):
         bl = QVBoxLayout(bank)
         bl.setSpacing(6)
 
-        bt = QLabel("TRANSFER TO")
-        bt.setStyleSheet("color: #8892A8; font-size: 10px; font-weight: 600; letter-spacing: 1.2px;")
+        bt = QLabel("โอนเงินไปที่")
+        bt.setStyleSheet(
+            "color: #8892A8; font-size: 10px; font-weight: 600; letter-spacing: 1.2px;"
+        )
         bl.addWidget(bt)
 
-        bl.addWidget(self._info_label("\U0001F3E6 Kasikornbank xxx-x-xxxxx-x"))
-        bl.addWidget(self._info_label("Account: XXXXX XXXXX"))
+        bank_name = self._bank_info.get("bank_name") or "ยังไม่ได้ตั้งค่า"
+        account_number = self._bank_info.get("account_number") or "—"
+        account_name = self._bank_info.get("account_name") or "—"
+        bl.addWidget(self._info_label(f"\U0001F3E6 {bank_name}  {account_number}"))
+        bl.addWidget(self._info_label(f"ชื่อบัญชี: {account_name}"))
 
-        rate = QLabel("Rate: 1 THB = 4 Credits")
+        rate = QLabel("อัตรา: 1 บาท = 4 เครดิต")
         rate.setStyleSheet("color: #FFD700; font-size: 12px; font-weight: 600;")
         bl.addWidget(rate)
 
         layout.addWidget(bank)
 
-        # Promo display (if active promos exist)
+        # ── Promo display ──
         if self._promos:
             best = self._promos[0]
             promo_box = QWidget()
@@ -132,10 +269,12 @@ class TopUpDialog(QDialog):
 
             promo_title = QLabel(best.get("banner_text", best.get("name", "")))
             promo_title.setWordWrap(True)
-            promo_title.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: 700; background: transparent; border: none;")
+            promo_title.setStyleSheet(
+                f"color: {color}; font-size: 12px; font-weight: 700; "
+                "background: transparent; border: none;"
+            )
             pl.addWidget(promo_title)
 
-            # Show tiers if available
             tiers = best.get("tiers")
             if tiers:
                 for t in tiers:
@@ -143,144 +282,194 @@ class TopUpDialog(QDialog):
                     cr = int(t.get("credits", 0))
                     base = min_b * 4
                     star = " \u2B50" if cr > base else ""
-                    tier_lbl = QLabel(f"  Top up {min_b} THB \u2192 {cr:,} credits{star}")
-                    tier_lbl.setStyleSheet("color: #E8E8E8; font-size: 11px; background: transparent; border: none;")
+                    tier_lbl = QLabel(f"  เติม {min_b} บาท \u2192 {cr:,} เครดิต{star}")
+                    tier_lbl.setStyleSheet(
+                        "color: #E8E8E8; font-size: 11px; background: transparent; border: none;"
+                    )
                     pl.addWidget(tier_lbl)
 
-            # Show rate override
             override = best.get("override_rate")
             if override:
-                rate_lbl = QLabel(f"  Special rate: 1 THB = {int(override)} credits")
-                rate_lbl.setStyleSheet("color: #E8E8E8; font-size: 11px; background: transparent; border: none;")
+                rate_lbl = QLabel(f"  อัตราพิเศษ: 1 บาท = {int(override)} เครดิต")
+                rate_lbl.setStyleSheet(
+                    "color: #E8E8E8; font-size: 11px; background: transparent; border: none;"
+                )
                 pl.addWidget(rate_lbl)
 
             ends = best.get("ends_at", "")
             if ends:
                 end_short = ends[:10] if len(ends) > 10 else ends
-                end_lbl = QLabel(f"  Ends: {end_short}")
-                end_lbl.setStyleSheet("color: #8892A8; font-size: 10px; background: transparent; border: none;")
+                end_lbl = QLabel(f"  สิ้นสุด: {end_short}")
+                end_lbl.setStyleSheet(
+                    "color: #8892A8; font-size: 10px; background: transparent; border: none;"
+                )
                 pl.addWidget(end_lbl)
 
             layout.addWidget(promo_box)
 
-        # Drop zone
-        self.drop_zone = DropZone()
+        # ── Slip drop zone ──
+        self.drop_zone = SlipDropZone()
+        self.drop_zone.qr_decoded.connect(self._on_qr_decoded)
+        self.drop_zone.qr_failed.connect(self._on_qr_failed)
         layout.addWidget(self.drop_zone)
 
-        # Amount
-        amt_row = QHBoxLayout()
-        amt_label = QLabel("Amount:")
-        amt_label.setStyleSheet("color: #8892A8; font-size: 12px;")
-        amt_row.addWidget(amt_label)
-
-        self.amount_input = QLineEdit()
-        self.amount_input.setPlaceholderText("0")
-        self.amount_input.setFixedWidth(120)
-        self.amount_input.setMinimumHeight(36)
-        amt_row.addWidget(self.amount_input)
-
-        thb = QLabel("THB")
-        thb.setStyleSheet("color: #8892A8; font-size: 12px;")
-        amt_row.addWidget(thb)
-        amt_row.addStretch()
-        layout.addLayout(amt_row)
-
-        # Credit preview
-        self.preview_label = QLabel("")
-        self.preview_label.setStyleSheet("color: #00E396; font-size: 12px; font-weight: 600;")
-        self.preview_label.hide()
-        layout.addWidget(self.preview_label)
-        self.amount_input.textChanged.connect(self._update_preview)
-
-        # Promo code input
+        # ── Promo code input ──
         code_row = QHBoxLayout()
-        code_label = QLabel("Promo Code:")
+        code_label = QLabel("รหัสโปรโมชั่น:")
         code_label.setStyleSheet("color: #8892A8; font-size: 12px;")
         code_row.addWidget(code_label)
         self.code_input = QLineEdit()
-        self.code_input.setPlaceholderText("Optional")
-        self.code_input.setFixedWidth(160)
+        self.code_input.setPlaceholderText("ไม่บังคับ")
+        self.code_input.setFixedWidth(180)
         self.code_input.setMinimumHeight(36)
         code_row.addWidget(self.code_input)
         code_row.addStretch()
         layout.addLayout(code_row)
 
-        # Submit
-        self.btn_submit = QPushButton("Submit Slip")
+        # ── Submit button ──
+        self.btn_submit = QPushButton("\U0001F50D ตรวจสอบและเติมเงิน")
         self.btn_submit.setObjectName("confirmButton")
-        self.btn_submit.setMinimumHeight(42)
+        self.btn_submit.setMinimumHeight(44)
         self.btn_submit.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_submit.setEnabled(False)
         self.btn_submit.clicked.connect(self._on_submit)
         layout.addWidget(self.btn_submit)
 
-        # Status
+        # ── Status label ──
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #8892A8; font-size: 12px;")
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
-        # Close
-        btn_close = QPushButton("Close")
+        # ── Result card (hidden until success) ──
+        self.result_card = QWidget()
+        self.result_card.setObjectName("resultCard")
+        self.result_card.setStyleSheet("""
+            QWidget#resultCard {
+                background: #00E39618;
+                border: 1px solid #00E39644;
+                border-radius: 10px;
+            }
+        """)
+        self.result_card.hide()
+        rl = QVBoxLayout(self.result_card)
+        rl.setContentsMargins(14, 12, 14, 12)
+        rl.setSpacing(4)
+        self.result_title = QLabel("")
+        self.result_title.setStyleSheet(
+            "color: #00E396; font-size: 14px; font-weight: 700; "
+            "border: none; background: transparent;"
+        )
+        rl.addWidget(self.result_title)
+        self.result_detail = QLabel("")
+        self.result_detail.setWordWrap(True)
+        self.result_detail.setStyleSheet(
+            "color: #C8C8D8; font-size: 12px; border: none; background: transparent;"
+        )
+        rl.addWidget(self.result_detail)
+        layout.addWidget(self.result_card)
+
+        # ── Close button ──
+        btn_close = QPushButton("ปิด")
         btn_close.setMinimumHeight(38)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.clicked.connect(self.accept)
         layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
+
+    # ── Helpers ──
 
     def _info_label(self, text):
         lbl = QLabel(text)
         lbl.setStyleSheet("color: #E8E8E8; font-size: 12px;")
         return lbl
 
-    def _update_preview(self, text: str):
-        """Update credit preview as user types amount."""
-        if not text or not text.isdigit() or int(text) <= 0:
-            self.preview_label.hide()
-            return
+    def _on_qr_decoded(self, qr_data: str):
+        self._qr_ready = True
+        self.btn_submit.setEnabled(True)
+        self.status_label.setText("")
 
-        amount = int(text)
-        base = amount * 4
-        bonus = 0
-
-        # Check if any promo gives bonus
-        if self._promos:
-            best = self._promos[0]
-            tiers = best.get("tiers")
-            override = best.get("override_rate")
-            pct = best.get("bonus_percentage")
-            flat = best.get("bonus_credits")
-
-            if tiers:
-                for t in sorted(tiers, key=lambda x: x.get("min_baht", 0), reverse=True):
-                    if amount >= t.get("min_baht", 0):
-                        bonus = t.get("credits", 0) - base
-                        break
-            elif override:
-                bonus = int(amount * override) - base
-            elif pct:
-                bonus = int(base * pct / 100)
-            elif flat:
-                bonus = flat
-
-        total = base + max(bonus, 0)
-        if bonus > 0:
-            self.preview_label.setText(
-                f"You will receive: {total:,} credits ({base:,} base + {bonus:,} bonus \U0001F381)"
-            )
-        else:
-            self.preview_label.setText(f"You will receive: {total:,} credits")
-        self.preview_label.show()
+    def _on_qr_failed(self):
+        self._qr_ready = False
+        self.btn_submit.setEnabled(False)
+        self.status_label.setText(
+            "\u274C ไม่สามารถอ่าน QR code จากรูปได้\n"
+            "กรุณาใช้รูปสลิปที่ชัดเจนกว่านี้"
+        )
+        self.status_label.setStyleSheet("color: #FF4560; font-size: 12px;")
 
     def _on_submit(self):
-        slip = self.drop_zone.get_filepath()
-        amount = self.amount_input.text().strip()
-        if not slip:
-            self.status_label.setText("\u274C Please attach a payment slip")
+        if self._submitting:
+            return
+        qr_data = self.drop_zone.get_qr_data()
+        if not qr_data:
+            self.status_label.setText("\u274C ไม่มีข้อมูล QR code — กรุณาแนบสลิปก่อน")
             self.status_label.setStyleSheet("color: #FF4560; font-size: 12px;")
             return
-        if not amount or not amount.isdigit():
-            self.status_label.setText("\u274C Please enter a valid amount")
-            self.status_label.setStyleSheet("color: #FF4560; font-size: 12px;")
-            return
-        self.status_label.setText("\u23F3 Verifying...")
+
+        self._submitting = True
+        self.btn_submit.setEnabled(False)
+        self.btn_submit.setText("\u23F3 กำลังตรวจสอบกับธนาคาร...")
+        self.status_label.setText("\u23F3 กำลังส่งข้อมูลไป Slip2Go เพื่อตรวจสอบ...")
         self.status_label.setStyleSheet("color: #FEB019; font-size: 12px;")
-        # TODO: Implement actual API call
+        self.result_card.hide()
+        QApplication.processEvents()
+
+        promo_code = self.code_input.text().strip()
+
+        # Run API call in background thread
+        threading.Thread(
+            target=self._do_topup, args=(qr_data, promo_code), daemon=True
+        ).start()
+
+    def _do_topup(self, qr_data: str, promo_code: str):
+        try:
+            result = api.topup(qr_data, promo_code)
+            QMetaObject.invokeMethod(
+                self, "_on_topup_success", Qt.ConnectionType.QueuedConnection,
+                Q_ARG(str, str(result.get("total_credits", 0))),
+                Q_ARG(str, str(result.get("base_credits", 0))),
+                Q_ARG(str, str(result.get("bonus_credits", 0))),
+                Q_ARG(str, str(result.get("new_balance", 0))),
+                Q_ARG(str, result.get("promo_applied", "") or ""),
+                Q_ARG(str, result.get("message", "")),
+            )
+        except Exception as e:
+            msg = str(e)
+            # Try to extract detail from APIError
+            if hasattr(e, "detail"):
+                msg = e.detail
+            QMetaObject.invokeMethod(
+                self, "_on_topup_error", Qt.ConnectionType.QueuedConnection,
+                Q_ARG(str, msg),
+            )
+
+    @Slot(str, str, str, str, str, str)
+    def _on_topup_success(self, total: str, base: str, bonus: str,
+                          new_balance: str, promo: str, message: str):
+        self._submitting = False
+        self.btn_submit.setText("\u2705 สำเร็จ!")
+        self.status_label.setText("")
+
+        detail_parts = [f"เครดิตพื้นฐาน: +{int(base):,} เครดิต"]
+        if int(bonus) > 0:
+            detail_parts.append(f"โบนัส: +{int(bonus):,} เครดิต")
+        if promo:
+            detail_parts.append(f"โปรโมชั่น: {promo}")
+        detail_parts.append(f"ยอดคงเหลือ: {int(new_balance):,} เครดิต")
+
+        self.result_title.setText(f"\u2705 เติมสำเร็จ +{int(total):,} เครดิต!")
+        self.result_detail.setText("\n".join(detail_parts))
+        self.result_card.show()
+
+        # Refresh parent's balance
+        parent = self.parent()
+        if parent and hasattr(parent, "_on_refresh_balance"):
+            parent._on_refresh_balance()
+
+    @Slot(str)
+    def _on_topup_error(self, error_msg: str):
+        self._submitting = False
+        self.btn_submit.setEnabled(True)
+        self.btn_submit.setText("\U0001F50D ตรวจสอบและเติมเงิน")
+        self.status_label.setText(f"\u274C {error_msg}")
+        self.status_label.setStyleSheet("color: #FF4560; font-size: 12px;")

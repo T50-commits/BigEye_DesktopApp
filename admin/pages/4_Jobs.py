@@ -3,6 +3,9 @@ BigEye Pro Admin — หน้าตรวจสอบงาน
 กรอง, ดูรายละเอียดงาน, คืนเครดิตงานค้าง
 """
 import streamlit as st
+from utils.auth import require_auth
+require_auth()
+
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 from google.cloud.firestore_v1 import FieldFilter
@@ -196,9 +199,9 @@ if selected_rows:
         st.markdown(f"**สถานะ:** {job.get('status', '—')}")
 
     with col3:
-        client_info = job.get("client_info", {})
-        st.markdown(f"**โมเดล:** {client_info.get('model_used', '—')}")
-        st.markdown(f"**เวอร์ชัน:** {client_info.get('app_version', '—')}")
+        meta = job.get("metadata", job.get("client_info", {}))
+        st.markdown(f"**โมเดล:** {meta.get('model_used', '—')}")
+        st.markdown(f"**เวอร์ชัน:** {meta.get('app_version', '—')}")
         st.markdown(f"**โหมด:** {job.get('mode', '—')}")
 
     job_user_id = job.get('user_id', '')

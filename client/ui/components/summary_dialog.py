@@ -13,7 +13,7 @@ class SummaryDialog(QDialog):
                  video_count: int, charged: int, refunded: int,
                  balance: int, csv_files: list, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Processing Complete")
+        self.setWindowTitle("ประมวลผลเสร็จสิ้น")
         self.setFixedWidth(440)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
         self._setup_ui(successful, failed, photo_count, video_count,
@@ -25,27 +25,27 @@ class SummaryDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(14)
 
-        title = QLabel("\u2705 Processing Complete")
+        title = QLabel("\u2705 ประมวลผลเสร็จสิ้น")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #00E396;")
         layout.addWidget(title)
 
         # Results card
-        results = self._card("RESULTS")
+        results = self._card("ผลลัพธ์")
         rl = results.layout()
-        self._add_row(rl, "Successful", f"{successful} files", "#00E396")
+        self._add_row(rl, "สำเร็จ", f"{successful} ไฟล์", "#00E396")
         if failed > 0:
-            self._add_row(rl, "Failed", f"{failed} file{'s' if failed != 1 else ''}", "#FF4560")
-        self._add_row(rl, "Breakdown", f"\U0001F4F8 {photo_count} photos \u00B7 \U0001F3AC {video_count} vid", "#8892A8")
+            self._add_row(rl, "ล้มเหลว", f"{failed} ไฟล์", "#FF4560")
+        self._add_row(rl, "รายละเอียด", f"\U0001F4F8 {photo_count} ภาพ \u00B7 \U0001F3AC {video_count} วิดีโอ", "#8892A8")
         layout.addWidget(results)
 
         # Credits card
-        credits = self._card("CREDITS")
+        credits = self._card("เครดิต")
         cl = credits.layout()
-        self._add_row(cl, "Charged", f"{format_number(charged)} cr", "#E8E8E8")
+        self._add_row(cl, "หักไป", f"{format_number(charged)} เครดิต", "#E8E8E8")
         if refunded > 0:
-            self._add_row(cl, "Refunded", f"+{format_number(refunded)} cr", "#00E396")
+            self._add_row(cl, "คืนเครดิต", f"+{format_number(refunded)} เครดิต", "#00E396")
         net = charged - refunded
-        self._add_row(cl, "Net cost", f"{format_number(net)} cr", "#E8E8E8")
+        self._add_row(cl, "สุทธิ", f"{format_number(net)} เครดิต", "#E8E8E8")
 
         sep = QLabel("")
         sep.setFixedHeight(1)
@@ -55,9 +55,9 @@ class SummaryDialog(QDialog):
         from PySide6.QtWidgets import QHBoxLayout
         bal_layout = QHBoxLayout()
         bal_layout.setContentsMargins(0, 0, 0, 0)
-        bal_lbl = QLabel("Balance:")
+        bal_lbl = QLabel("ยอดคงเหลือ:")
         bal_lbl.setStyleSheet("color: #FFD700; font-size: 14px; font-weight: 700; border: none; background: transparent;")
-        bal_val = QLabel(f"{format_number(balance)} credits")
+        bal_val = QLabel(f"{format_number(balance)} เครดิต")
         bal_val.setStyleSheet("color: #FFD700; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         bal_val.setAlignment(Qt.AlignmentFlag.AlignRight)
         bal_layout.addWidget(bal_lbl)
@@ -68,7 +68,7 @@ class SummaryDialog(QDialog):
 
         # CSV files card
         if csv_files:
-            csv_card = self._card("CSV FILES")
+            csv_card = self._card("ไฟล์ CSV")
             cvl = csv_card.layout()
             for f in csv_files:
                 fl = QLabel(f"\u2705 {f}")
@@ -86,8 +86,8 @@ class SummaryDialog(QDialog):
         rl2 = QVBoxLayout(reminder)
         rl2.setContentsMargins(0, 0, 0, 0)
         note = QLabel(
-            "\U0001F4A1 Remember to review all metadata before uploading. "
-            "AI results may need manual adjustments for best rates."
+            "\U0001F4A1 กรุณาตรวจสอบข้อมูลทั้งหมดก่อนอัปโหลด "
+            "ผลลัพธ์จาก AI อาจต้องปรับแก้เพื่อให้ได้อัตราอนุมัติดีที่สุด"
         )
         note.setStyleSheet("color: #8892A8; font-size: 11px;")
         note.setWordWrap(True)
@@ -95,7 +95,7 @@ class SummaryDialog(QDialog):
         layout.addWidget(reminder)
 
         # Close button
-        btn = QPushButton("Close")
+        btn = QPushButton("ปิด")
         btn.setMinimumHeight(40)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(self.accept)

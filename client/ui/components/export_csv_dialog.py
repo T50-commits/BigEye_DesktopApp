@@ -46,10 +46,10 @@ class ExportCsvDialog(QDialog):
         info_layout.addWidget(info_icon, 0)
 
         info_text = QLabel(
-            "<b style='color: #00B4D8;'>Re-export with Your Edits</b><br>"
+            "<b style='color: #00B4D8;'>ส่งออก CSV ใหม่พร้อมการแก้ไขของคุณ</b><br>"
             "<span style='color: #8892A8; font-size: 12px;'>"
-            "This will generate new CSV files that include any changes "
-            "you've made to titles, descriptions, and keywords.</span>"
+            "ระบบจะสร้างไฟล์ CSV ใหม่ที่รวมการแก้ไข "
+            "ชื่อเรื่อง, คำอธิบาย และคีย์เวิร์ดที่คุณปรับแล้ว</span>"
         )
         info_text.setWordWrap(True)
         info_text.setStyleSheet("background: transparent; border: none;")
@@ -67,15 +67,15 @@ class ExportCsvDialog(QDialog):
         wl = QVBoxLayout(warning)
         wl.setSpacing(8)
 
-        warn_title = QLabel("\u26A0\uFE0F Please Review Before Uploading")
+        warn_title = QLabel("\u26A0\uFE0F กรุณาตรวจสอบก่อนอัปโหลด")
         warn_title.setStyleSheet("color: #FEB019; font-size: 13px; font-weight: 700;")
         wl.addWidget(warn_title)
 
         warn_body = QLabel(
-            "AI-generated metadata may contain errors or inaccuracies. "
-            "We strongly recommend reviewing all titles, descriptions, and "
-            "keywords before submitting to stock platforms to ensure the "
-            "best acceptance rates and avoid potential rejections."
+            "ข้อมูลที่สร้างโดย AI อาจมีข้อผิดพลาดหรือไม่ถูกต้อง "
+            "เราแนะนำให้ตรวจสอบชื่อเรื่อง คำอธิบาย และคีย์เวิร์ดทั้งหมด "
+            "ก่อนส่งไปยังแพลตฟอร์มขายภาพ เพื่อเพิ่มอัตราการอนุมัติ "
+            "และลดโอกาสถูกปฏิเสธ"
         )
         warn_body.setStyleSheet("color: #8892A8; font-size: 12px; line-height: 1.6;")
         warn_body.setWordWrap(True)
@@ -92,16 +92,16 @@ class ExportCsvDialog(QDialog):
         cl = QVBoxLayout(checklist)
         cl.setSpacing(8)
 
-        cl_title = QLabel("QUICK CHECKLIST")
+        cl_title = QLabel("รายการตรวจสอบ")
         cl_title.setStyleSheet(
             "color: #8892A8; font-size: 10px; font-weight: 600; letter-spacing: 1.2px;"
         )
         cl.addWidget(cl_title)
 
         checks = [
-            "Titles accurately describe the content",
-            "Descriptions are relevant and detailed",
-            "Keywords don't contain trademarked terms",
+            "ชื่อเรื่องตรงกับเนื้อหาในภาพ/วิดีโอ",
+            "คำอธิบายมีรายละเอียดครบถ้วน",
+            "คีย์เวิร์ดไม่มีคำที่เป็นเครื่องหมายการค้า",
         ]
         self.checkboxes = []
         for text in checks:
