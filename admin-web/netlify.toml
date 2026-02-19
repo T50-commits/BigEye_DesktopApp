@@ -2,5 +2,8 @@
   command = "npm run build"
   publish = ".next"
 
+[build.environment]
+  NEXT_PUBLIC_API_URL = "https://bigeye-api-671665186709.asia-southeast1.run.app/api/v1"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
