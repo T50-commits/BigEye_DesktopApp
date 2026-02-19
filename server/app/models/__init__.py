@@ -80,7 +80,7 @@ class ReserveJobResponse(BaseModel):
     video_rate: int = 0
     config: str = ""  # AES encrypted prompt
     dictionary: str = ""  # keyword dictionary (iStock mode only)
-    blacklist: list[str] = []
+    blacklist: str = ""
     concurrency: dict = {}
     cache_threshold: int = 20  # context cache threshold (§7.1)
 

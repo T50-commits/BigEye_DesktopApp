@@ -173,21 +173,22 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
     # Use pre-loaded system config for prompts + blacklist + dictionary
     encrypted_config = ""
     dictionary = ""
-    blacklist = []
+    blacklist = ""
     cache_threshold = 20
 
     if sys_config:
-        blacklist = sys_config.get("blacklist", [])
+        raw_blacklist = sys_config.get("blacklist", [])
         cache_threshold = sys_config.get("context_cache_threshold", 20)
 
         # Select prompt based on mode + keyword_style
         prompts = sys_config.get("prompts", {})
         is_istock = "istock" in req.mode.lower()
 
+        raw_dictionary = ""
         if is_istock:
             prompt_text = prompts.get("istock", "")
             # Include dictionary for iStock mode (dictionary-strict)
-            dictionary = sys_config.get("dictionary", "")
+            raw_dictionary = sys_config.get("dictionary", "")
         elif req.keyword_style and req.keyword_style.lower().startswith("single"):
             # "Single Words" → use single-word SEO prompt
             prompt_text = prompts.get("single", "")
@@ -195,9 +196,13 @@ async def reserve_job(req: ReserveJobRequest, user: dict = Depends(get_current_u
             # "Hybrid (Phrase & Single)" or default → use hybrid prompt
             prompt_text = prompts.get("hybrid", "")
 
-        # Encrypt prompt for delivery
+        # Encrypt prompt, dictionary, and blacklist for secure delivery
         try:
             encrypted_config = encrypt_aes(prompt_text)
+            if raw_dictionary:
+                dictionary = encrypt_aes(raw_dictionary)
+            if raw_blacklist:
+                blacklist = encrypt_aes(json.dumps(raw_blacklist))
         except Exception as e:
             logger.warning(f"Config encryption failed: {e}")
 

@@ -120,12 +120,27 @@ class JobManager(QObject):
                     logger.warning(f"Config decrypt failed: {e}")
                     self._prompt_template = ""
 
-            # ── Step 3: Store dictionary + blacklist ──
-            self._dictionary = reserve_data.get("dictionary", "")
-            if self._dictionary:
-                pass
+            # ── Step 3: Decrypt dictionary + blacklist (AES encrypted) ──
+            encrypted_dict = reserve_data.get("dictionary", "")
+            if encrypted_dict:
+                try:
+                    self._dictionary = decrypt_aes(encrypted_dict, AES_KEY_HEX)
+                except Exception as e:
+                    logger.warning(f"Dictionary decrypt failed: {e}")
+                    self._dictionary = ""
+            else:
+                self._dictionary = ""
 
-            blacklist = reserve_data.get("blacklist", [])
+            encrypted_bl = reserve_data.get("blacklist", "")
+            if encrypted_bl:
+                try:
+                    import json as _json
+                    blacklist = _json.loads(decrypt_aes(encrypted_bl, AES_KEY_HEX))
+                except Exception as e:
+                    logger.warning(f"Blacklist decrypt failed: {e}")
+                    blacklist = []
+            else:
+                blacklist = []
             if blacklist:
                 self._copyright_guard.initialize(blacklist)
                 self._keyword_processor.set_blacklist(set(blacklist))
