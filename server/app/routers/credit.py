@@ -20,6 +20,7 @@ from app.models.promo import (
 from app.database import users_ref, transactions_ref, slips_ref, audit_logs_ref, system_config_ref
 from app.dependencies import get_current_user
 from app.config import settings
+from app.rate_limit import limiter
 from app.services.promo_engine import (
     get_active_promos_for_client, process_topup_with_promo,
 )
@@ -212,10 +213,40 @@ def _check_duplicate_bank_ref(bank_ref: str) -> bool:
     return len(existing) > 0
 
 
+def _check_duplicate_qr(qr_data: str) -> bool:
+    """Check if this exact QR string was already VERIFIED — blocks before calling Slip2Go API."""
+    if not qr_data:
+        return False
+    existing = list(
+        slips_ref()
+        .where(filter=FieldFilter("qr_data", "==", qr_data))
+        .where(filter=FieldFilter("status", "==", "VERIFIED"))
+        .limit(1)
+        .stream()
+    )
+    return len(existing) > 0
+
+
+def _check_recent_rejection(user_id: str, cooldown_minutes: int = 5) -> bool:
+    """Check if user had a REJECTED slip within cooldown window — prevents spam."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)
+    recent = list(
+        slips_ref()
+        .where(filter=FieldFilter("user_id", "==", user_id))
+        .where(filter=FieldFilter("status", "==", "REJECTED"))
+        .where(filter=FieldFilter("created_at", ">=", cutoff))
+        .limit(1)
+        .stream()
+    )
+    return len(recent) > 0
+
+
 @router.post("/topup", response_model=TopUpWithPromoResponse)
-async def topup(req: TopUpWithPromoRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("3/minute;10/hour")
+async def topup(request: Request, req: TopUpWithPromoRequest, user: dict = Depends(get_current_user)):
     """
     Submit a payment slip for top-up.
+    0. Pre-checks (rate limit, QR dup, cooldown) — before calling Slip2Go
     1. Create PENDING slip record
     2. Verify QR code via Slip2Go API (with checkDuplicate)
     3. Our own duplicate check via bank_ref in Firestore
@@ -226,6 +257,19 @@ async def topup(req: TopUpWithPromoRequest, user: dict = Depends(get_current_use
     user_id = user["user_id"]
     now = datetime.now(timezone.utc)
 
+    # ── Step 0: Pre-checks before calling Slip2Go (saves API cost) ──
+
+    # 0a. Check if this exact QR was already verified (free check via Firestore)
+    if _check_duplicate_qr(req.slip):
+        raise HTTPException(status_code=409, detail="สลิปนี้เคยใช้แล้ว (duplicate)")
+
+    # 0b. Cooldown: if user had a rejected slip in last 5 minutes, block
+    if _check_recent_rejection(user_id, cooldown_minutes=5):
+        raise HTTPException(
+            status_code=429,
+            detail="กรุณารอ 5 นาทีก่อนส่งสลิปใหม่",
+        )
+
     # ── Step 1: Create PENDING slip record ──
     slip_data = {
         "user_id": user_id,
@@ -233,6 +277,7 @@ async def topup(req: TopUpWithPromoRequest, user: dict = Depends(get_current_use
         "image_url": "",
         "amount_detected": None,
         "bank_ref": None,
+        "qr_data": req.slip,
         "verification_method": "AUTO_API",
         "created_at": now,
     }

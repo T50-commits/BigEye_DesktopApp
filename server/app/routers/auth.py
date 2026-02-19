@@ -32,6 +32,25 @@ async def register(request: Request, req: RegisterRequest):
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
 
+    # Check duplicate hardware_id — prevent multi-account abuse for free credits
+    existing_hw = list(
+        users_ref()
+        .where(filter=FieldFilter("hardware_id", "==", req.hardware_id))
+        .limit(1)
+        .stream()
+    )
+    if existing_hw:
+        audit_logs_ref().add({
+            "event_type": "REGISTER_BLOCKED_DUPLICATE_DEVICE",
+            "details": {"hardware_id": req.hardware_id[:8] + "...", "email": req.email.lower()},
+            "severity": "WARNING",
+            "created_at": datetime.now(timezone.utc),
+        })
+        raise HTTPException(
+            status_code=409,
+            detail="อุปกรณ์นี้มีบัญชีอยู่แล้ว กรุณาใช้บัญชีเดิมหรือติดต่อผู้ดูแลระบบ",
+        )
+
     now = datetime.now(timezone.utc)
     user_data = {
         "email": req.email.lower(),
