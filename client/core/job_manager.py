@@ -213,11 +213,12 @@ class JobManager(QObject):
         title_limit = self._settings.get("title_length", 70)
         desc_limit = self._settings.get("description_length", 200)
 
-        # บอก AI ให้ใช้ limit เล็กกว่าจริง 10% เพื่อชดเชยการนับตัวอักษรผิดของ AI
-        title_limit_for_ai = int(title_limit * 0.90)
-        desc_limit_for_ai  = int(desc_limit  * 0.90)
-        title_min_for_ai   = int(title_limit * 0.65)
-        desc_min_for_ai    = int(desc_limit  * 0.65)
+        # บอก AI เป็น range แคบ (80%-95% ของ limit จริง) เพื่อให้ output สม่ำเสมอ
+        # และชดเชยการนับตัวอักษรผิดของ AI
+        title_limit_for_ai = int(title_limit * 0.95)
+        desc_limit_for_ai  = int(desc_limit  * 0.95)
+        title_min_for_ai   = int(title_limit * 0.80)
+        desc_min_for_ai    = int(desc_limit  * 0.80)
 
         # Video-specific instruction
         video_instruction = ""
