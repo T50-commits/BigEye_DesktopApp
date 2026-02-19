@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
 
