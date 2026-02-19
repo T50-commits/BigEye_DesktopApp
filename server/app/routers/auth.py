@@ -143,33 +143,30 @@ async def login(request: Request, req: LoginRequest):
     if user.get("status") in ("banned", "suspended"):
         raise HTTPException(status_code=403, detail="Account suspended")
 
-    # Check hardware_id binding
+    # Soft bind: allow login from new device but log the change
     stored_hw = user.get("hardware_id", "")
-    if stored_hw and stored_hw != req.hardware_id:
-        audit_logs_ref().add({
-            "event_type": "LOGIN_FAILED_DEVICE_MISMATCH",
-            "user_id": user_id,
-            "details": {
-                "stored": stored_hw[:8] + "...",
-                "attempted": req.hardware_id[:8] + "...",
-            },
-            "severity": "WARNING",
-            "created_at": now,
-        })
-        raise HTTPException(
-            status_code=403,
-            detail="This account is bound to a different device. Contact support.",
-        )
-
-    # Update last login + re-bind hardware_id if it was reset
     update_data = {
         "last_login": now,
         "last_active": now,
         "app_version": req.app_version,
     }
-    if not stored_hw:
+    if stored_hw and stored_hw != req.hardware_id:
+        # Device changed — update to new hardware_id (soft bind)
         update_data["hardware_id"] = req.hardware_id
-        logger.info(f"Hardware ID re-bound for user {user_id}")
+        audit_logs_ref().add({
+            "event_type": "LOGIN_DEVICE_CHANGED",
+            "user_id": user_id,
+            "details": {
+                "old_device": stored_hw[:8] + "...",
+                "new_device": req.hardware_id[:8] + "...",
+            },
+            "severity": "INFO",
+            "created_at": now,
+        })
+        logger.info(f"Device changed for user {user_id} — hardware_id updated")
+    elif not stored_hw:
+        update_data["hardware_id"] = req.hardware_id
+        logger.info(f"Hardware ID bound for user {user_id}")
     users_ref().document(user_id).update(update_data)
 
     # Create JWT
