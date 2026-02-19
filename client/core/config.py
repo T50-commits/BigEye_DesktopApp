@@ -50,52 +50,42 @@ PLATFORM_RATES = {
 }
 
 # AI Models — list of model IDs shown in dropdown (newest first)
+# Note: gemini-1.5-x and gemini-2.0-x are deprecated (shutdown ~2026)
+# gemini-3-x are Preview (may require allowlist access)
 AI_MODELS = [
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
+    "gemini-2.5-flash-lite",
 ]
 
 # AI Model metadata: {model_id: {label, supports_cache, description}}
 AI_MODEL_INFO = {
+    "gemini-3-pro-preview": {
+        "label": "Gemini 3 Pro (Preview)",
+        "supports_cache": False,
+        "description": "ใหม่ล่าสุด | ฉลาดที่สุดในโลก | Multimodal",
+    },
+    "gemini-3-flash-preview": {
+        "label": "Gemini 3 Flash (Preview)",
+        "supports_cache": False,
+        "description": "ใหม่ล่าสุด | เร็ว + ฉลาดเทียบ Pro | ราคาถูก",
+    },
     "gemini-2.5-pro": {
         "label": "Gemini 2.5 Pro",
         "supports_cache": False,
-        "description": "ฉลาดที่สุด | คุณภาพสูงสุด | ช้ากว่า",
+        "description": "ฉลาดมาก | คุณภาพสูง | ช้ากว่า Flash",
     },
     "gemini-2.5-flash": {
         "label": "Gemini 2.5 Flash",
         "supports_cache": False,
-        "description": "ใหม่ล่าสุด | เร็ว + ฉลาด | แนะนำ",
+        "description": "เร็ว + ฉลาด | แนะนำสำหรับใช้งานทั่วไป",
     },
-    "gemini-2.0-flash": {
-        "label": "Gemini 2.0 Flash",
+    "gemini-2.5-flash-lite": {
+        "label": "Gemini 2.5 Flash-Lite",
         "supports_cache": False,
-        "description": "เร็ว | คุณภาพดี | ราคาถูก",
-    },
-    "gemini-2.0-flash-lite": {
-        "label": "Gemini 2.0 Flash-Lite",
-        "supports_cache": False,
-        "description": "เร็วมาก | ราคาถูกที่สุด | ใช้งานทั่วไป",
-    },
-    "gemini-1.5-pro": {
-        "label": "Gemini 1.5 Pro",
-        "supports_cache": True,
-        "description": "รองรับ Context Cache | วิดีโอยาวได้ดี",
-    },
-    "gemini-1.5-flash": {
-        "label": "Gemini 1.5 Flash",
-        "supports_cache": True,
-        "description": "รองรับ Context Cache | เร็ว + ประหยัด",
-    },
-    "gemini-1.5-flash-8b": {
-        "label": "Gemini 1.5 Flash-8B",
-        "supports_cache": True,
-        "description": "รองรับ Context Cache | เร็วที่สุด | ราคาต่ำสุด",
+        "description": "เร็วที่สุด | ราคาต่ำสุด | งานปริมาณมาก",
     },
 }
 
