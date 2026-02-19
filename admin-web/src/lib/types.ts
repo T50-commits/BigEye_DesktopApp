@@ -35,7 +35,6 @@ export interface UserSummary {
 }
 
 export interface UserDetail extends UserSummary {
-  phone: string;
   hardware_id: string;
   total_topup_baht: number;
   total_credits_used: number;

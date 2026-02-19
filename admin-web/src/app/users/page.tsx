@@ -13,7 +13,7 @@ interface User {
 }
 
 interface UserFull extends User {
-  phone: string; hardware_id: string; total_topup_baht: number;
+  hardware_id: string; total_topup_baht: number;
   total_credits_used: number; app_version: string; os_type: string; last_active: string;
 }
 
@@ -163,7 +163,6 @@ export default function UsersPage() {
                 <InfoRow label="UID" value={selected.uid} mono />
                 <InfoRow label="Email" value={selected.email} />
                 <InfoRow label="ชื่อ" value={selected.full_name} />
-                <InfoRow label="โทร" value={selected.phone || "—"} />
                 <InfoRow label="เครดิต" value={formatNumber(selected.credits)} highlight />
                 <InfoRow label="เติมเงินรวม" value={formatCurrency(selected.total_topup_baht)} />
                 <InfoRow label="ใช้ไปรวม" value={formatNumber(selected.total_credits_used) + " cr"} />
