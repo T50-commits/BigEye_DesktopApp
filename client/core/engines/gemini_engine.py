@@ -284,30 +284,26 @@ class GeminiEngine:
             genai.configure(api_key=self._api_key, transport="rest")
             logger.info("Gemini client reset")
 
-    def _cleanup_old_files(self):
-        """ลบไฟล์เก่าที่ค้างอยู่ใน Gemini File API เพื่อคืน quota"""
+    def cleanup_all_remote_files(self):
+        """ลบไฟล์ทั้งหมดที่ค้างใน Gemini File API (เรียกครั้งเดียวตอนเริ่ม job)"""
+        if not self._api_key:
+            return
+        count = 0
         try:
             for f in genai.list_files():
-                if f.state.name in ("ACTIVE", "FAILED"):
-                    with self._prefetch_lock:
-                        is_prefetched = any(
-                            pf.name == f.name
-                            for pf in self._prefetched.values()
-                        )
-                    if not is_prefetched:
-                        try:
-                            genai.delete_file(f.name)
-                            logger.debug(f"Cleaned old file: {f.name}")
-                        except Exception:
-                            pass
+                try:
+                    genai.delete_file(f.name)
+                    count += 1
+                except Exception:
+                    pass
+            if count:
+                logger.info(f"Cleaned {count} old files from Gemini")
         except Exception as e:
-            logger.debug(f"File cleanup skipped: {e}")
+            logger.debug(f"Remote cleanup skipped: {e}")
 
     def _upload_video(self, filepath: str):
         """Upload video to Gemini File API. Serialized with timeout to prevent SSL corruption."""
         logger.info(f"Uploading video: {os.path.basename(filepath)}")
-        # คืน quota โดยลบไฟล์เก่าที่ค้าง
-        self._cleanup_old_files()
         max_upload_retries = 5
         for attempt in range(1, max_upload_retries + 1):
             try:

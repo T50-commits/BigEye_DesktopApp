@@ -140,6 +140,10 @@ class JobManager(QObject):
             self._engine.set_api_key(api_key)
             self._engine.set_model(model)
 
+            # ลบไฟล์เก่าที่ค้างใน Gemini (ครั้งเดียวตอนเริ่ม job)
+            self.status_update.emit("กำลังเตรียมระบบ...")
+            self._engine.cleanup_all_remote_files()
+
             # ── Step 6: Create context cache if large job ──
             cache_threshold = reserve_data.get("cache_threshold", CACHE_THRESHOLD)
             if self._prompt_template:
