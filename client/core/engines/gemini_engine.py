@@ -241,13 +241,10 @@ class GeminiEngine:
                     timeout=TIMEOUT_VIDEO,
                 )
         finally:
-            # ลบไฟล์ที่ upload ครั้งเดียว ไม่ retry ถ้า 403
             try:
                 genai.delete_file(video_file.name)
-                logger.info(f"Deleted: {video_file.name}")
-            except Exception as e:
-                # ข้ามไป ไม่ retry — Gemini จะลบเองหลัง 48 ชม.
-                logger.debug(f"Delete skipped: {e}")
+            except Exception:
+                pass  # ข้ามไป Gemini ลบเองใน 48 ชม.
 
     def cleanup_prefetched(self):
         """Delete any prefetched videos that were never used."""
@@ -284,22 +281,23 @@ class GeminiEngine:
 
     def cleanup_all_remote_files(self):
         """ลบไฟล์ที่ค้างใน Gemini File API (เรียกครั้งเดียวตอนเริ่ม job)
-        ข้าม 403 ทันที ไม่ retry — เพราะเป็นไฟล์ของ key อื่น ลบไม่ได้"""
+        ข้าม 403 ทันที ไม่ retry — หยุดหลังลบได้ 10 ตัว"""
         if not self._api_key:
             return
         count = 0
-        skipped = 0
         try:
             for f in genai.list_files():
                 try:
                     genai.delete_file(f.name)
                     count += 1
                 except Exception:
-                    skipped += 1
-            if count or skipped:
-                logger.info(f"File cleanup: deleted {count}, skipped {skipped} (no permission)")
-        except Exception as e:
-            logger.debug(f"Remote cleanup skipped: {e}")
+                    pass  # ข้ามทันที ไม่ retry
+                if count >= 10:
+                    break  # ลบพอแล้ว ไม่ต้องลบทั้งหมด
+            if count:
+                logger.info(f"Cleaned {count} old files")
+        except Exception:
+            pass
 
     def _upload_video(self, filepath: str):
         """Upload video to Gemini File API. Serialized with timeout to prevent SSL corruption."""

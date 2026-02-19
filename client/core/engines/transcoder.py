@@ -91,10 +91,11 @@ class Transcoder:
                 cmd.extend(["-t", str(max_duration)])
 
             cmd.extend([
-                "-vf", f"scale=-2:{height}",
+                "-vf", f"scale=-2:360",
                 "-c:v", "libx264",
-                "-preset", "fast",
-                "-crf", "28",
+                "-preset", "ultrafast",
+                "-crf", "32",
+                "-r", "15",
                 "-an",  # No audio
                 output_path,
             ])
