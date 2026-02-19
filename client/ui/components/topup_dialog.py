@@ -168,7 +168,7 @@ class TopUpDialog(QDialog):
     def __init__(self, parent=None, promos: list = None, bank_info: dict = None):
         super().__init__(parent)
         self.setWindowTitle("เติมเครดิต")
-        self.setFixedWidth(480)
+        self.setFixedWidth(760)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
         self._promos = promos or []
         self._bank_info = bank_info or {}
@@ -177,85 +177,86 @@ class TopUpDialog(QDialog):
         self._setup_ui()
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(14)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(14)
 
         # ── Title ──
         title = QLabel("\U0001FA99 เติมเครดิต")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #E8E8E8;")
-        layout.addWidget(title)
+        root.addWidget(title)
 
-        # ── How it works ──
+        # ── 2-column body ──
+        body = QHBoxLayout()
+        body.setSpacing(16)
+
+        # ════════════════════════════
+        # LEFT COLUMN — info
+        # ════════════════════════════
+        left = QVBoxLayout()
+        left.setSpacing(12)
+
+        # Steps card
         steps = QWidget()
         steps.setStyleSheet(
             "background: #16213E; border: 1px solid #1A3A6B; "
             "border-radius: 10px; padding: 14px;"
         )
         sl = QVBoxLayout(steps)
-        sl.setSpacing(4)
-
+        sl.setSpacing(5)
         how_title = QLabel("ขั้นตอนการเติมเงิน")
         how_title.setStyleSheet(
             "color: #8892A8; font-size: 10px; font-weight: 600; "
             "letter-spacing: 1.2px; border: none;"
         )
         sl.addWidget(how_title)
-
         for num, text in [
-            ("1", "โอนเงินไปยังบัญชีธนาคารด้านล่าง"),
+            ("1", "โอนเงินไปยังบัญชีธนาคารด้านขวา"),
             ("2", "แคปหน้าจอสลิปการโอน"),
-            ("3", "ลากรูปสลิปมาวางที่นี่ — ระบบอ่าน QR อัตโนมัติ"),
+            ("3", "ลากรูปสลิปมาวางในกล่องด้านขวา"),
             ("4", "กด 'ตรวจสอบและเติมเงิน' — เครดิตเข้าทันที"),
         ]:
-            step_row = QHBoxLayout()
-            num_lbl = QLabel(num)
-            num_lbl.setFixedWidth(18)
-            num_lbl.setStyleSheet(
-                "color: #FFD700; font-size: 11px; font-weight: 700; border: none;"
-            )
-            txt_lbl = QLabel(text)
-            txt_lbl.setStyleSheet("color: #C8C8D8; font-size: 11px; border: none;")
-            step_row.addWidget(num_lbl)
-            step_row.addWidget(txt_lbl)
-            step_row.addStretch()
-            sl.addLayout(step_row)
+            row = QHBoxLayout()
+            n = QLabel(num)
+            n.setFixedWidth(18)
+            n.setStyleSheet("color: #FFD700; font-size: 11px; font-weight: 700; border: none;")
+            t = QLabel(text)
+            t.setStyleSheet("color: #C8C8D8; font-size: 11px; border: none;")
+            row.addWidget(n)
+            row.addWidget(t)
+            row.addStretch()
+            sl.addLayout(row)
+        left.addWidget(steps)
 
-        layout.addWidget(steps)
-
-        # ── Bank info card ──
+        # Bank info card
         bank = QWidget()
         bank.setStyleSheet(
             "background: #16213E; border: 1px solid #1A3A6B; "
             "border-radius: 10px; padding: 14px;"
         )
         bl = QVBoxLayout(bank)
-        bl.setSpacing(6)
-
+        bl.setSpacing(7)
         bt = QLabel("โอนเงินไปที่")
         bt.setStyleSheet(
-            "color: #8892A8; font-size: 10px; font-weight: 600; letter-spacing: 1.2px;"
+            "color: #8892A8; font-size: 10px; font-weight: 600; letter-spacing: 1.2px; border: none;"
         )
         bl.addWidget(bt)
-
         bank_name = self._bank_info.get("bank_name") or "ยังไม่ได้ตั้งค่า"
         account_number = self._bank_info.get("account_number") or "—"
         account_name = self._bank_info.get("account_name") or "—"
         bl.addWidget(self._info_label(f"\U0001F3E6 {bank_name}  {account_number}"))
         bl.addWidget(self._info_label(f"ชื่อบัญชี: {account_name}"))
+        rate_lbl = QLabel("อัตรา: 1 บาท = 4 เครดิต")
+        rate_lbl.setStyleSheet("color: #FFD700; font-size: 12px; font-weight: 600; border: none;")
+        bl.addWidget(rate_lbl)
+        left.addWidget(bank)
 
-        rate = QLabel("อัตรา: 1 บาท = 4 เครดิต")
-        rate.setStyleSheet("color: #FFD700; font-size: 12px; font-weight: 600;")
-        bl.addWidget(rate)
-
-        layout.addWidget(bank)
-
-        # ── Promo display ──
+        # Promo display (optional)
         if self._promos:
             best = self._promos[0]
+            color = best.get("banner_color", "#FF4560")
             promo_box = QWidget()
             promo_box.setObjectName("promoBox")
-            color = best.get("banner_color", "#FF4560")
             promo_box.setStyleSheet(f"""
                 QWidget#promoBox {{
                     background: {color}18;
@@ -265,8 +266,7 @@ class TopUpDialog(QDialog):
             """)
             pl = QVBoxLayout(promo_box)
             pl.setContentsMargins(14, 10, 14, 10)
-            pl.setSpacing(6)
-
+            pl.setSpacing(5)
             promo_title = QLabel(best.get("banner_text", best.get("name", "")))
             promo_title.setWordWrap(True)
             promo_title.setStyleSheet(
@@ -274,74 +274,70 @@ class TopUpDialog(QDialog):
                 "background: transparent; border: none;"
             )
             pl.addWidget(promo_title)
-
             tiers = best.get("tiers")
             if tiers:
                 for t in tiers:
                     min_b = int(t.get("min_baht", 0))
                     cr = int(t.get("credits", 0))
-                    base = min_b * 4
-                    star = " \u2B50" if cr > base else ""
-                    tier_lbl = QLabel(f"  เติม {min_b} บาท \u2192 {cr:,} เครดิต{star}")
-                    tier_lbl.setStyleSheet(
-                        "color: #E8E8E8; font-size: 11px; background: transparent; border: none;"
-                    )
-                    pl.addWidget(tier_lbl)
-
+                    star = " \u2B50" if cr > min_b * 4 else ""
+                    tl = QLabel(f"  เติม {min_b} บาท \u2192 {cr:,} เครดิต{star}")
+                    tl.setStyleSheet("color: #E8E8E8; font-size: 11px; background: transparent; border: none;")
+                    pl.addWidget(tl)
             override = best.get("override_rate")
             if override:
-                rate_lbl = QLabel(f"  อัตราพิเศษ: 1 บาท = {int(override)} เครดิต")
-                rate_lbl.setStyleSheet(
-                    "color: #E8E8E8; font-size: 11px; background: transparent; border: none;"
-                )
-                pl.addWidget(rate_lbl)
-
+                ol = QLabel(f"  อัตราพิเศษ: 1 บาท = {int(override)} เครดิต")
+                ol.setStyleSheet("color: #E8E8E8; font-size: 11px; background: transparent; border: none;")
+                pl.addWidget(ol)
             ends = best.get("ends_at", "")
             if ends:
-                end_short = ends[:10] if len(ends) > 10 else ends
-                end_lbl = QLabel(f"  สิ้นสุด: {end_short}")
-                end_lbl.setStyleSheet(
-                    "color: #8892A8; font-size: 10px; background: transparent; border: none;"
-                )
-                pl.addWidget(end_lbl)
+                el = QLabel(f"  สิ้นสุด: {ends[:10]}")
+                el.setStyleSheet("color: #8892A8; font-size: 10px; background: transparent; border: none;")
+                pl.addWidget(el)
+            left.addWidget(promo_box)
 
-            layout.addWidget(promo_box)
+        left.addStretch()
+        body.addLayout(left, stretch=1)
 
-        # ── Slip drop zone ──
+        # ════════════════════════════
+        # RIGHT COLUMN — action
+        # ════════════════════════════
+        right = QVBoxLayout()
+        right.setSpacing(12)
+
+        # Drop zone
         self.drop_zone = SlipDropZone()
+        self.drop_zone.setMinimumHeight(160)
         self.drop_zone.qr_decoded.connect(self._on_qr_decoded)
         self.drop_zone.qr_failed.connect(self._on_qr_failed)
-        layout.addWidget(self.drop_zone)
+        right.addWidget(self.drop_zone)
 
-        # ── Promo code input ──
+        # Promo code input
         code_row = QHBoxLayout()
         code_label = QLabel("รหัสโปรโมชั่น:")
         code_label.setStyleSheet("color: #8892A8; font-size: 12px;")
         code_row.addWidget(code_label)
         self.code_input = QLineEdit()
         self.code_input.setPlaceholderText("ไม่บังคับ")
-        self.code_input.setFixedWidth(180)
         self.code_input.setMinimumHeight(36)
-        code_row.addWidget(self.code_input)
-        code_row.addStretch()
-        layout.addLayout(code_row)
+        code_row.addWidget(self.code_input, stretch=1)
+        right.addLayout(code_row)
 
-        # ── Submit button ──
+        # Submit button
         self.btn_submit = QPushButton("\U0001F50D ตรวจสอบและเติมเงิน")
         self.btn_submit.setObjectName("confirmButton")
         self.btn_submit.setMinimumHeight(44)
         self.btn_submit.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_submit.setEnabled(False)
         self.btn_submit.clicked.connect(self._on_submit)
-        layout.addWidget(self.btn_submit)
+        right.addWidget(self.btn_submit)
 
-        # ── Status label ──
+        # Status label
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #8892A8; font-size: 12px;")
         self.status_label.setWordWrap(True)
-        layout.addWidget(self.status_label)
+        right.addWidget(self.status_label)
 
-        # ── Result card (hidden until success) ──
+        # Result card (hidden until success)
         self.result_card = QWidget()
         self.result_card.setObjectName("resultCard")
         self.result_card.setStyleSheet("""
@@ -367,14 +363,20 @@ class TopUpDialog(QDialog):
             "color: #C8C8D8; font-size: 12px; border: none; background: transparent;"
         )
         rl.addWidget(self.result_detail)
-        layout.addWidget(self.result_card)
+        right.addWidget(self.result_card)
+
+        right.addStretch()
+        body.addLayout(right, stretch=1)
+
+        root.addLayout(body)
 
         # ── Close button ──
         btn_close = QPushButton("ปิด")
-        btn_close.setMinimumHeight(38)
+        btn_close.setMinimumHeight(36)
+        btn_close.setFixedWidth(100)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.clicked.connect(self.accept)
-        layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignRight)
 
     # ── Helpers ──
 
