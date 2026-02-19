@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QWidget, QLineEdit, QFrame, QApplication,
 )
-from PySide6.QtCore import Qt, Signal, QMetaObject, Q_ARG, Slot
+from PySide6.QtCore import Qt, Signal, QMetaObject, Q_ARG, Slot, QTimer
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QImage
 
 from core.api_client import api
@@ -173,6 +173,8 @@ class TopUpDialog(QDialog):
         self._promos = promos or []
         self._bank_info = bank_info or {}
         self._qr_ready = False
+        self._loading_timer = None
+        self._loading_dots = 0
         self._submitting = False
         self._setup_ui()
 
@@ -392,12 +394,31 @@ class TopUpDialog(QDialog):
 
     def _on_qr_failed(self):
         self._qr_ready = False
+        self._loading_timer = None
+        self._loading_dots = 0
         self.btn_submit.setEnabled(False)
         self.status_label.setText(
             "\u274C ไม่สามารถอ่าน QR code จากรูปได้\n"
             "กรุณาใช้รูปสลิปที่ชัดเจนกว่านี้"
         )
         self.status_label.setStyleSheet("color: #FF4560; font-size: 12px;")
+
+    def _start_loading_anim(self):
+        self._loading_dots = 0
+        self._loading_timer = QTimer(self)
+        self._loading_timer.setInterval(400)
+        self._loading_timer.timeout.connect(self._tick_loading)
+        self._loading_timer.start()
+
+    def _tick_loading(self):
+        self._loading_dots = (self._loading_dots % 3) + 1
+        dots = "." * self._loading_dots
+        self.btn_submit.setText(f"⏳ กำลังตรวจสอบ{dots}")
+
+    def _stop_loading_anim(self):
+        if self._loading_timer:
+            self._loading_timer.stop()
+            self._loading_timer = None
 
     def _on_submit(self):
         if self._submitting:
@@ -410,7 +431,7 @@ class TopUpDialog(QDialog):
 
         self._submitting = True
         self.btn_submit.setEnabled(False)
-        self.btn_submit.setText("\u23F3 กำลังตรวจสอบกับธนาคาร...")
+        self._start_loading_anim()
         self.status_label.setText("\u23F3 กำลังส่งข้อมูลไป Slip2Go เพื่อตรวจสอบ...")
         self.status_label.setStyleSheet("color: #FEB019; font-size: 12px;")
         self.result_card.hide()
@@ -449,6 +470,7 @@ class TopUpDialog(QDialog):
     def _on_topup_success(self, total: str, base: str, bonus: str,
                           new_balance: str, promo: str, message: str):
         self._submitting = False
+        self._stop_loading_anim()
         self.btn_submit.setText("\u2705 สำเร็จ!")
         self.status_label.setText("")
 
@@ -471,6 +493,7 @@ class TopUpDialog(QDialog):
     @Slot(str)
     def _on_topup_error(self, error_msg: str):
         self._submitting = False
+        self._stop_loading_anim()
         self.btn_submit.setEnabled(True)
         self.btn_submit.setText("\U0001F50D ตรวจสอบและเติมเงิน")
         self.status_label.setText(f"\u274C {error_msg}")
