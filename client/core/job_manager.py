@@ -4,6 +4,7 @@ Orchestrates the full processing pipeline:
   reserve → decrypt → cache → process → finalize → CSV → summary → cleanup
 """
 import os
+import shutil
 import logging
 import time
 import threading
@@ -412,6 +413,11 @@ class JobManager(QObject):
                 platform, self._results, self._folder_path, model, style_tag,
             )
 
+        # ── Move completed files to output folder ──
+        output_folder = ""
+        if ok > 0 and self._folder_path:
+            output_folder = self._move_completed_files(csv_files)
+
         # ── Play completion sound ──
         self._play_sound()
 
@@ -433,10 +439,48 @@ class JobManager(QObject):
             "refunded": refunded,
             "balance": new_balance,
             "csv_files": csv_files,
+            "output_folder": output_folder,
         }
 
         logger.info(f"Job complete: {ok} ok, {failed} failed, refunded={refunded}")
         self.job_completed.emit(summary)
+
+    def _move_completed_files(self, csv_files: list) -> str:
+        """สร้างโฟลเดอร์ output และย้ายไฟล์ที่สำเร็จ + CSV ไปไว้ใน folder นั้น
+        Returns: path ของ output folder (หรือ "" ถ้าล้มเหลว)
+        """
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder_name = os.path.basename(self._folder_path.rstrip("/\\"))
+        output_dir = os.path.join(self._folder_path, f"BigEye_Output_{timestamp}")
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except OSError as e:
+            logger.warning(f"Cannot create output folder: {e}")
+            return ""
+
+        # ย้ายไฟล์ที่ประมวลผลสำเร็จ
+        moved = 0
+        for filepath in self._files:
+            filename = os.path.basename(filepath)
+            if self._results.get(filename, {}).get("status") == "success":
+                dest = os.path.join(output_dir, filename)
+                try:
+                    shutil.move(filepath, dest)
+                    moved += 1
+                except Exception as e:
+                    logger.warning(f"Cannot move {filename}: {e}")
+
+        # ย้าย CSV ไปด้วย
+        for csv_path in csv_files:
+            if os.path.isfile(csv_path):
+                try:
+                    shutil.move(csv_path, os.path.join(output_dir, os.path.basename(csv_path)))
+                except Exception as e:
+                    logger.warning(f"Cannot move CSV {os.path.basename(csv_path)}: {e}")
+
+        logger.info(f"Moved {moved} files + {len(csv_files)} CSV(s) → {output_dir}")
+        return output_dir
 
     def _play_sound(self):
         """Play completion sound if available."""

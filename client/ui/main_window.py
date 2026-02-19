@@ -417,6 +417,7 @@ class MainWindow(QMainWindow):
         refunded = summary.get("refunded", 0)
         balance = summary.get("balance", 0)
         csv_files = summary.get("csv_files", [])
+        output_folder = summary.get("output_folder", "")
 
         self.credit_bar.set_balance(balance)
         self.gallery.update_progress(self._process_total, self._process_total)
@@ -429,7 +430,7 @@ class MainWindow(QMainWindow):
 
         dialog = SummaryDialog(
             successful, failed, img_count, vid_count,
-            charged, refunded, balance, csv_files, self
+            charged, refunded, balance, csv_files, output_folder, self
         )
         dialog.exec()
 

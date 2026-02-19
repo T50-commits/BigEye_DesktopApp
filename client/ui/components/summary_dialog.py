@@ -1,26 +1,30 @@
 """
 BigEye Pro — Job Summary Dialog
 """
+import os
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QPushButton, QWidget, QGridLayout
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget, QGridLayout
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QUrl
 from utils.helpers import format_number
 
 
 class SummaryDialog(QDialog):
     def __init__(self, successful: int, failed: int, photo_count: int,
                  video_count: int, charged: int, refunded: int,
-                 balance: int, csv_files: list, parent=None):
+                 balance: int, csv_files: list, output_folder: str = "",
+                 parent=None):
         super().__init__(parent)
         self.setWindowTitle("ประมวลผลเสร็จสิ้น")
-        self.setFixedWidth(440)
+        self.setFixedWidth(460)
         self.setStyleSheet("background: #1A1A2E; color: #E8E8E8;")
         self._setup_ui(successful, failed, photo_count, video_count,
-                       charged, refunded, balance, csv_files)
+                       charged, refunded, balance, csv_files, output_folder)
 
     def _setup_ui(self, successful, failed, photo_count, video_count,
-                  charged, refunded, balance, csv_files):
+                  charged, refunded, balance, csv_files, output_folder):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(14)
@@ -66,16 +70,29 @@ class SummaryDialog(QDialog):
         cl.addLayout(bal_layout)
         layout.addWidget(credits)
 
-        # CSV files card
-        if csv_files:
-            csv_card = self._card("ไฟล์ CSV")
-            cvl = csv_card.layout()
-            for f in csv_files:
-                fl = QLabel(f"\u2705 {f}")
-                fl.setStyleSheet("color: #00E396; font-size: 11px;")
-                fl.setWordWrap(True)
-                cvl.addWidget(fl)
-            layout.addWidget(csv_card)
+        # Output folder card
+        if output_folder and os.path.isdir(output_folder):
+            out_card = self._card("โฟลเดอร์ผลลัพธ์")
+            ovl = out_card.layout()
+            folder_name = os.path.basename(output_folder)
+            fl = QLabel(f"\U0001F4C2 {folder_name}")
+            fl.setStyleSheet("color: #4f8cff; font-size: 12px; font-weight: 600; border: none; background: transparent;")
+            fl.setWordWrap(True)
+            ovl.addWidget(fl)
+            note = QLabel(f"ไฟล์ที่สำเร็จและ CSV ถูกย้ายไปไว้ใน folder นี้แล้ว")
+            note.setStyleSheet("color: #8892A8; font-size: 11px; border: none; background: transparent;")
+            ovl.addWidget(note)
+            btn_open = QPushButton("\U0001F4C1 เปิดโฟลเดอร์")
+            btn_open.setMinimumHeight(32)
+            btn_open.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_open.setStyleSheet(
+                "QPushButton { background: #1A3A6B; border: 1px solid #4f8cff; "
+                "border-radius: 6px; color: #4f8cff; font-size: 12px; padding: 4px 12px; }"
+                "QPushButton:hover { background: #2a4a8b; }"
+            )
+            btn_open.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(output_folder)))
+            ovl.addWidget(btn_open, alignment=Qt.AlignmentFlag.AlignLeft)
+            layout.addWidget(out_card)
 
         # Reminder
         reminder = QWidget()
