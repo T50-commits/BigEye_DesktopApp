@@ -37,7 +37,6 @@ async def register(request: Request, req: RegisterRequest):
         "email": req.email.lower(),
         "password_hash": hash_password(req.password),
         "full_name": req.full_name,
-        "phone": req.phone,
         "hardware_id": req.hardware_id,
         "tier": "standard",
         "credits": 0,

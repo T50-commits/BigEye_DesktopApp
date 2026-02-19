@@ -46,9 +46,9 @@ class AuthWorker(QObject):
         self._action = "login"
         self._args = {"email": email, "password": password}
 
-    def set_register(self, email: str, password: str, name: str, phone: str):
+    def set_register(self, email: str, password: str, name: str):
         self._action = "register"
-        self._args = {"email": email, "password": password, "name": name, "phone": phone}
+        self._args = {"email": email, "password": password, "name": name}
 
     @Slot()
     def run(self):
@@ -276,11 +276,6 @@ class AuthWindow(QDialog):
         self.reg_email.setMinimumHeight(42)
         form.addWidget(self.reg_email)
 
-        self.reg_phone = QLineEdit()
-        self.reg_phone.setPlaceholderText("Phone Number")
-        self.reg_phone.setMinimumHeight(42)
-        form.addWidget(self.reg_phone)
-
         self.reg_password, reg_pw_row = self._create_password_field("Password")
         form.addWidget(reg_pw_row)
 
@@ -445,11 +440,10 @@ class AuthWindow(QDialog):
     def _on_register(self):
         name = self.reg_name.text().strip()
         email = self.reg_email.text().strip()
-        phone = self.reg_phone.text().strip()
         password = self.reg_password.text()
         confirm = self.reg_confirm.text()
 
-        if not all([name, email, phone, password, confirm]):
+        if not all([name, email, password, confirm]):
             self._show_error("Please fill in all fields")
             return
         if len(name) < 2 or len(name) > 100:
@@ -457,9 +451,6 @@ class AuthWindow(QDialog):
             return
         if not self._validate_email(email):
             self._show_error("Please enter a valid email address")
-            return
-        if not re.match(r'^\d{9,15}$', phone):
-            self._show_error("Phone number must be 9-15 digits")
             return
         if len(password) < 8:
             self._show_error("Password must be at least 8 characters")
@@ -472,7 +463,7 @@ class AuthWindow(QDialog):
         self._set_loading(True)
 
         self._worker = AuthWorker(self._auth)
-        self._worker.set_register(email, password, name, phone)
+        self._worker.set_register(email, password, name)
         self._start_worker()
 
     # ── QThread management ──
@@ -523,7 +514,6 @@ class AuthWindow(QDialog):
         self.signin_password.setEnabled(not loading)
         self.reg_name.setEnabled(not loading)
         self.reg_email.setEnabled(not loading)
-        self.reg_phone.setEnabled(not loading)
         self.reg_password.setEnabled(not loading)
         self.reg_confirm.setEnabled(not loading)
         if loading:

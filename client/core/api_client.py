@@ -102,11 +102,11 @@ class APIClient:
     # ── Auth ──
 
     def register(self, email: str, password: str, name: str,
-                 phone: str, hardware_id: str) -> dict:
+                 hardware_id: str) -> dict:
         """POST /auth/register — auto set_token on success."""
         data = self._post("/auth/register", {
             "email": email, "password": password, "full_name": name,
-            "phone": phone, "hardware_id": hardware_id,
+            "hardware_id": hardware_id,
         })
         if "token" in data:
             self.set_token(data["token"])

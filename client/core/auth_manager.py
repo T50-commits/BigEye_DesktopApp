@@ -50,10 +50,10 @@ class AuthManager:
         save_to_keyring(KEYRING_SERVICE, KEYRING_CREDS, creds)
         return result
 
-    def register(self, email: str, password: str, name: str, phone: str) -> dict:
+    def register(self, email: str, password: str, name: str) -> dict:
         """Register and save session."""
         hw_id = get_hardware_id()
-        result = api.register(email, password, name, phone, hw_id)
+        result = api.register(email, password, name, hw_id)
         self._save_session(result)
         return result
 
