@@ -64,7 +64,7 @@ def classify_error(exc: Exception) -> GeminiError:
         return GeminiError(str(exc), GeminiErrorType.INVALID_KEY, retryable=False)
     elif "not found" in msg and "model" in msg or "404" in msg:
         return GeminiError(str(exc), GeminiErrorType.MODEL_NOT_FOUND, retryable=False)
-    elif "too large" in msg or "payload" in msg or "413" in msg:
+    elif ("too large" in msg or "payload" in msg or "413" in msg) and "403" not in msg and "permission" not in msg:
         return GeminiError(str(exc), GeminiErrorType.CONTENT_TOO_LARGE, retryable=False)
     else:
         return GeminiError(str(exc), GeminiErrorType.UNKNOWN, retryable=True)
@@ -241,15 +241,13 @@ class GeminiEngine:
                     timeout=TIMEOUT_VIDEO,
                 )
         finally:
-            # ต้อง delete ให้สำเร็จ เพื่อคืน quota
-            for attempt in range(3):
-                try:
-                    genai.delete_file(video_file.name)
-                    logger.info(f"Deleted uploaded file: {video_file.name}")
-                    break
-                except Exception as e:
-                    logger.warning(f"Delete attempt {attempt + 1} failed: {e}")
-                    time.sleep(1)
+            # ลบไฟล์ที่ upload ครั้งเดียว ไม่ retry ถ้า 403
+            try:
+                genai.delete_file(video_file.name)
+                logger.info(f"Deleted: {video_file.name}")
+            except Exception as e:
+                # ข้ามไป ไม่ retry — Gemini จะลบเองหลัง 48 ชม.
+                logger.debug(f"Delete skipped: {e}")
 
     def cleanup_prefetched(self):
         """Delete any prefetched videos that were never used."""
@@ -285,19 +283,21 @@ class GeminiEngine:
             logger.info("Gemini client reset")
 
     def cleanup_all_remote_files(self):
-        """ลบไฟล์ทั้งหมดที่ค้างใน Gemini File API (เรียกครั้งเดียวตอนเริ่ม job)"""
+        """ลบไฟล์ที่ค้างใน Gemini File API (เรียกครั้งเดียวตอนเริ่ม job)
+        ข้าม 403 ทันที ไม่ retry — เพราะเป็นไฟล์ของ key อื่น ลบไม่ได้"""
         if not self._api_key:
             return
         count = 0
+        skipped = 0
         try:
             for f in genai.list_files():
                 try:
                     genai.delete_file(f.name)
                     count += 1
                 except Exception:
-                    pass
-            if count:
-                logger.info(f"Cleaned {count} old files from Gemini")
+                    skipped += 1
+            if count or skipped:
+                logger.info(f"File cleanup: deleted {count}, skipped {skipped} (no permission)")
         except Exception as e:
             logger.debug(f"Remote cleanup skipped: {e}")
 
