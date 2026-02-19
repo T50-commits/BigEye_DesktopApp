@@ -201,10 +201,11 @@ class GeminiEngine:
         )
 
     def prefetch_video(self, filepath: str):
-        """
-        Pre-upload a video in the background so it's ready when process_video is called.
-        Safe to call from a different thread. Errors are deferred to process_video.
-        """
+        """Pre-upload video. จำกัดไม่เกิน 2 ไฟล์ค้างใน prefetched."""
+        with self._prefetch_lock:
+            if len(self._prefetched) >= 2:
+                logger.debug("Prefetch skipped: already 2 files queued")
+                return
         try:
             video_file = self._upload_video(filepath)
             with self._prefetch_lock:
@@ -240,10 +241,15 @@ class GeminiEngine:
                     timeout=TIMEOUT_VIDEO,
                 )
         finally:
-            try:
-                genai.delete_file(video_file.name)
-            except Exception:
-                pass
+            # ต้อง delete ให้สำเร็จ เพื่อคืน quota
+            for attempt in range(3):
+                try:
+                    genai.delete_file(video_file.name)
+                    logger.info(f"Deleted uploaded file: {video_file.name}")
+                    break
+                except Exception as e:
+                    logger.warning(f"Delete attempt {attempt + 1} failed: {e}")
+                    time.sleep(1)
 
     def cleanup_prefetched(self):
         """Delete any prefetched videos that were never used."""
@@ -278,9 +284,30 @@ class GeminiEngine:
             genai.configure(api_key=self._api_key, transport="rest")
             logger.info("Gemini client reset")
 
+    def _cleanup_old_files(self):
+        """ลบไฟล์เก่าที่ค้างอยู่ใน Gemini File API เพื่อคืน quota"""
+        try:
+            for f in genai.list_files():
+                if f.state.name in ("ACTIVE", "FAILED"):
+                    with self._prefetch_lock:
+                        is_prefetched = any(
+                            pf.name == f.name
+                            for pf in self._prefetched.values()
+                        )
+                    if not is_prefetched:
+                        try:
+                            genai.delete_file(f.name)
+                            logger.debug(f"Cleaned old file: {f.name}")
+                        except Exception:
+                            pass
+        except Exception as e:
+            logger.debug(f"File cleanup skipped: {e}")
+
     def _upload_video(self, filepath: str):
         """Upload video to Gemini File API. Serialized with timeout to prevent SSL corruption."""
         logger.info(f"Uploading video: {os.path.basename(filepath)}")
+        # คืน quota โดยลบไฟล์เก่าที่ค้าง
+        self._cleanup_old_files()
         max_upload_retries = 5
         for attempt in range(1, max_upload_retries + 1):
             try:
@@ -324,10 +351,33 @@ class GeminiEngine:
             video_file = genai.get_file(video_file.name)
 
         if video_file.state.name == "FAILED":
-            raise GeminiError(
-                f"Gemini ไม่สามารถประมวลผลวิดีโอนี้ได้",
-                GeminiErrorType.UNKNOWN, retryable=False,
-            )
+            # ลบไฟล์ที่ FAILED แล้ว retry upload อีกครั้ง
+            try:
+                genai.delete_file(video_file.name)
+            except Exception:
+                pass
+            logger.warning(f"Video FAILED on Gemini side, retrying upload...")
+            time.sleep(3)
+            acquired = self._upload_lock.acquire(timeout=180)
+            if not acquired:
+                raise GeminiError(
+                    "Video upload timeout — อัพโหลดวิดีโอนานเกินไป กรุณาลองใหม่",
+                    GeminiErrorType.TIMEOUT, retryable=True,
+                )
+            try:
+                video_file = genai.upload_file(filepath)
+            finally:
+                self._upload_lock.release()
+            elapsed = 0
+            while video_file.state.name == "PROCESSING" and elapsed < max_wait:
+                time.sleep(2)
+                elapsed += 2
+                video_file = genai.get_file(video_file.name)
+            if video_file.state.name != "ACTIVE":
+                raise GeminiError(
+                    f"Gemini ไม่สามารถประมวลผลวิดีโอนี้ได้ กรุณาลองใหม่",
+                    GeminiErrorType.UNKNOWN, retryable=False,
+                )
 
         if video_file.state.name != "ACTIVE":
             raise GeminiError(

@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, Signal
 
 from core.config import APP_VERSION, AES_KEY_HEX, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 from core.api_client import api, APIError, NetworkError, MaintenanceError
-from core.engines.gemini_engine import GeminiEngine, GeminiError
+from core.engines.gemini_engine import GeminiEngine, GeminiError, GeminiErrorType
 from core.engines.transcoder import Transcoder
 from core.logic.keyword_processor import KeywordProcessor
 from core.logic.copyright_guard import CopyrightGuard
@@ -282,9 +282,25 @@ class JobManager(QObject):
             return result
 
         except GeminiError as e:
+            if e.error_type == GeminiErrorType.RATE_LIMIT:
+                user_msg = "ส่งงานเร็วเกินไป กรุณารอสักครู่แล้วลองใหม่"
+            elif e.error_type == GeminiErrorType.SAFETY:
+                user_msg = "เนื้อหาไม่ผ่านตัวกรองความปลอดภัย"
+            elif e.error_type == GeminiErrorType.TIMEOUT:
+                user_msg = "ประมวลผลนานเกินไป กรุณาลองใหม่"
+            elif e.error_type == GeminiErrorType.CONTENT_TOO_LARGE:
+                user_msg = "ไฟล์ใหญ่เกินไป กรุณาลดขนาดวิดีโอ"
+            elif e.error_type == GeminiErrorType.INVALID_KEY:
+                user_msg = "API Key ไม่ถูกต้อง กรุณาตรวจสอบ"
+            elif e.error_type == GeminiErrorType.MODEL_NOT_FOUND:
+                user_msg = "ไม่พบ Model ที่เลือก กรุณาเปลี่ยน Model"
+            elif e.error_type == GeminiErrorType.QUOTA:
+                user_msg = "Quota หมด กรุณาตรวจสอบ API Key"
+            else:
+                user_msg = "ไม่สามารถประมวลผลได้ กรุณาลองใหม่"
             return {
                 "status": "error",
-                "error": str(e),
+                "error": user_msg,
                 "error_type": e.error_type.value,
                 "processing_time": time.time() - start_time,
             }
@@ -300,6 +316,9 @@ class JobManager(QObject):
         """Pre-upload the next video proxy in background while current video generates."""
         with self._prefetch_lock:
             if self._video_index >= len(self._video_queue):
+                return
+            # จำกัด prefetch ไม่เกิน 2 ไฟล์ค้างใน Gemini
+            if len(self._engine._prefetched) >= 2:
                 return
             next_vid = self._video_queue[self._video_index]
             self._video_index += 1
