@@ -84,11 +84,12 @@ class GeminiEngine:
         self._cache = None
         self._cache_name = ""
         self._system_prompt = ""                 # Stored for inline system_instruction
-        self._model_lock = threading.Lock()      # Protect lazy model creation
-        self._api_sem = threading.Semaphore(6)   # Allow parallel generates
-        self._upload_lock = threading.Lock()     # Serialize video uploads (SSL corruption fix)
-        self._prefetch_lock = threading.Lock()   # Protect prefetched dict
-        self._prefetched = {}                    # {filepath: video_file} pre-uploaded videos
+        self._model_lock = threading.Lock()           # Protect lazy model creation
+        self._api_sem = threading.Semaphore(6)          # Allow parallel generates
+        self._upload_lock = threading.Lock()            # Serialize video uploads (SSL corruption fix)
+        self._video_generate_lock = threading.Lock()    # Serialize video generate to prevent SSL corruption
+        self._prefetch_lock = threading.Lock()          # Protect prefetched dict
+        self._prefetched = {}                           # {filepath: video_file} pre-uploaded videos
 
     # ── Configuration ──
 
@@ -218,8 +219,8 @@ class GeminiEngine:
         """
         Process a video file with Gemini API.
         Uses prefetched upload if available, otherwise uploads now.
-        Returns parsed JSON dict.
-        Raises GeminiError on classified failure.
+        Video generate is serialized to prevent SSL corruption,
+        but upload runs in parallel with generate (pipeline).
         """
         # Use prefetched upload if available
         with self._prefetch_lock:
@@ -229,13 +230,16 @@ class GeminiEngine:
         else:
             video_file = self._upload_video(filepath)
         try:
-            return self._generate_with_retry(
-                contents=[video_file, prompt],
-                system_prompt=system_prompt,
-                timeout=TIMEOUT_VIDEO,
-            )
+            # Serialize video generate to prevent SSL state corruption
+            # Upload ของวิดีโอถัดไป (prefetch) ยังทำพร้อมกันได้
+            # เพราะใช้คนละ lock (_upload_lock vs _video_generate_lock)
+            with self._video_generate_lock:
+                return self._generate_with_retry(
+                    contents=[video_file, prompt],
+                    system_prompt=system_prompt,
+                    timeout=TIMEOUT_VIDEO,
+                )
         finally:
-            # Clean up uploaded file
             try:
                 genai.delete_file(video_file.name)
             except Exception:
@@ -275,14 +279,25 @@ class GeminiEngine:
             logger.info("Gemini client reset")
 
     def _upload_video(self, filepath: str):
-        """Upload video to Gemini File API and wait for processing. Upload serialized to prevent SSL corruption."""
+        """Upload video to Gemini File API. Serialized with timeout to prevent SSL corruption."""
         logger.info(f"Uploading video: {os.path.basename(filepath)}")
         max_upload_retries = 5
         for attempt in range(1, max_upload_retries + 1):
             try:
-                with self._upload_lock:
+                # timeout=180s ป้องกัน deadlock ถ้า upload ค้าง
+                acquired = self._upload_lock.acquire(timeout=180)
+                if not acquired:
+                    raise GeminiError(
+                        "Video upload timeout — อัพโหลดวิดีโอนานเกินไป กรุณาลองใหม่",
+                        GeminiErrorType.TIMEOUT, retryable=True,
+                    )
+                try:
                     video_file = genai.upload_file(filepath)
+                finally:
+                    self._upload_lock.release()
                 break
+            except GeminiError:
+                raise  # ไม่ retry timeout จาก lock
             except Exception as e:
                 msg = str(e).lower()
                 is_retryable = (
@@ -293,13 +308,15 @@ class GeminiEngine:
                 )
                 if is_retryable and attempt < max_upload_retries:
                     logger.warning(f"Video upload error (attempt {attempt}/{max_upload_retries}): {e}")
-                    backoff = min(3 ** attempt, 30)  # 3, 9, 27, 30
+                    if "ssl" in msg or "wrong_version_number" in msg:
+                        self._reset_client()
+                    backoff = min(3 ** attempt, 30)
                     time.sleep(backoff)
                     continue
                 raise
 
         # Wait for video to be processed (ACTIVE state)
-        max_wait = 120  # seconds
+        max_wait = 120
         elapsed = 0
         while video_file.state.name == "PROCESSING" and elapsed < max_wait:
             time.sleep(2)
@@ -308,13 +325,13 @@ class GeminiEngine:
 
         if video_file.state.name == "FAILED":
             raise GeminiError(
-                f"Video processing failed: {video_file.name}",
+                f"Gemini ไม่สามารถประมวลผลวิดีโอนี้ได้",
                 GeminiErrorType.UNKNOWN, retryable=False,
             )
 
         if video_file.state.name != "ACTIVE":
             raise GeminiError(
-                f"Video not ready after {max_wait}s: state={video_file.state.name}",
+                f"วิดีโอไม่พร้อมหลังรอ {max_wait} วินาที กรุณาลองใหม่",
                 GeminiErrorType.TIMEOUT, retryable=True,
             )
 
