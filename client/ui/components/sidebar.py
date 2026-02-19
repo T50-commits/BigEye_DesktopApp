@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 
 from core.config import (
-    SIDEBAR_WIDTH, AI_MODELS, PLATFORMS, KEYWORD_STYLES,
+    SIDEBAR_WIDTH, AI_MODELS, AI_MODEL_INFO, PLATFORMS, KEYWORD_STYLES,
     SLIDER_CONFIGS, DEBUG_LOG_PATH
 )
 
@@ -253,11 +253,31 @@ class Sidebar(QWidget):
         self.layout_main.addWidget(model_label)
 
         self.combo_model = QComboBox()
-        self.combo_model.addItems(AI_MODELS)
+        for model_id in AI_MODELS:
+            info = AI_MODEL_INFO.get(model_id, {})
+            label = info.get("label", model_id)
+            self.combo_model.addItem(label, userData=model_id)
+            idx = self.combo_model.count() - 1
+            self.combo_model.setItemData(idx, info.get("description", ""), Qt.ItemDataRole.ToolTipRole)
+        # Default to gemini-2.5-flash
+        default_idx = next(
+            (i for i in range(self.combo_model.count())
+             if self.combo_model.itemData(i) == "gemini-2.5-flash"), 0
+        )
+        self.combo_model.setCurrentIndex(default_idx)
         self.combo_model.setMinimumHeight(38)
         style_combo(self.combo_model)
-        self.combo_model.currentTextChanged.connect(self.model_changed.emit)
+        self.combo_model.currentIndexChanged.connect(self._on_model_changed)
         self.layout_main.addWidget(self.combo_model)
+
+        # Model description label
+        self.model_desc_label = QLabel()
+        self.model_desc_label.setStyleSheet(
+            "color: #4f8cff; font-size: 10px; padding: 2px 4px;"
+        )
+        self.model_desc_label.setWordWrap(True)
+        self.layout_main.addWidget(self.model_desc_label)
+        self._update_model_desc()
 
         # Platform
         platform_label = QLabel("Platform")
@@ -323,6 +343,19 @@ class Sidebar(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
+    def _on_model_changed(self, index: int):
+        model_id = self.combo_model.itemData(index)
+        self._update_model_desc()
+        self.model_changed.emit(model_id or "")
+
+    def _update_model_desc(self):
+        model_id = self.combo_model.currentData()
+        info = AI_MODEL_INFO.get(model_id, {})
+        desc = info.get("description", "")
+        supports_cache = info.get("supports_cache", False)
+        cache_tag = " ⚡Cache" if supports_cache else ""
+        self.model_desc_label.setText(f"{desc}{cache_tag}")
+
     def _on_platform_changed(self, text: str):
         self.platform_changed.emit(text)
         self._update_keyword_style_visibility()
@@ -359,7 +392,8 @@ class Sidebar(QWidget):
         return self.api_key_input.text().strip()
 
     def get_model(self) -> str:
-        return self.combo_model.currentText()
+        """Return model ID (e.g. 'gemini-2.5-flash'), not display label."""
+        return self.combo_model.currentData() or self.combo_model.currentText()
 
     def get_platform(self) -> str:
         return self.combo_platform.currentText()

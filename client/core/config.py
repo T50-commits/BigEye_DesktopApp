@@ -49,12 +49,55 @@ PLATFORM_RATES = {
     "Adobe & Shutterstock": {"photo": 2, "video": 2},
 }
 
-# AI Models
+# AI Models — list of model IDs shown in dropdown (newest first)
 AI_MODELS = [
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
 ]
+
+# AI Model metadata: {model_id: {label, supports_cache, description}}
+AI_MODEL_INFO = {
+    "gemini-2.5-pro": {
+        "label": "Gemini 2.5 Pro",
+        "supports_cache": False,
+        "description": "ฉลาดที่สุด | คุณภาพสูงสุด | ช้ากว่า",
+    },
+    "gemini-2.5-flash": {
+        "label": "Gemini 2.5 Flash",
+        "supports_cache": False,
+        "description": "ใหม่ล่าสุด | เร็ว + ฉลาด | แนะนำ",
+    },
+    "gemini-2.0-flash": {
+        "label": "Gemini 2.0 Flash",
+        "supports_cache": False,
+        "description": "เร็ว | คุณภาพดี | ราคาถูก",
+    },
+    "gemini-2.0-flash-lite": {
+        "label": "Gemini 2.0 Flash-Lite",
+        "supports_cache": False,
+        "description": "เร็วมาก | ราคาถูกที่สุด | ใช้งานทั่วไป",
+    },
+    "gemini-1.5-pro": {
+        "label": "Gemini 1.5 Pro",
+        "supports_cache": True,
+        "description": "รองรับ Context Cache | วิดีโอยาวได้ดี",
+    },
+    "gemini-1.5-flash": {
+        "label": "Gemini 1.5 Flash",
+        "supports_cache": True,
+        "description": "รองรับ Context Cache | เร็ว + ประหยัด",
+    },
+    "gemini-1.5-flash-8b": {
+        "label": "Gemini 1.5 Flash-8B",
+        "supports_cache": True,
+        "description": "รองรับ Context Cache | เร็วที่สุด | ราคาต่ำสุด",
+    },
+}
 
 # Keyword styles
 KEYWORD_STYLES = [
