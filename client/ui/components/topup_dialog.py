@@ -246,7 +246,37 @@ class TopUpDialog(QDialog):
         bank_name = self._bank_info.get("bank_name") or "ยังไม่ได้ตั้งค่า"
         account_number = self._bank_info.get("account_number") or "—"
         account_name = self._bank_info.get("account_name") or "—"
-        bl.addWidget(self._info_label(f"\U0001F3E6 {bank_name}  {account_number}"))
+        # Bank name row
+        bl.addWidget(self._info_label(f"\U0001F3E6 {bank_name}"))
+
+        # Account number row with copy button
+        acc_row = QWidget()
+        acc_row.setStyleSheet("background: transparent; border: none;")
+        acc_hl = QHBoxLayout(acc_row)
+        acc_hl.setContentsMargins(0, 0, 0, 0)
+        acc_hl.setSpacing(6)
+        acc_lbl = self._info_label(f"เลขบัญชี: {account_number}")
+        acc_hl.addWidget(acc_lbl)
+        acc_hl.addStretch()
+        btn_copy = QPushButton("\U0001F4CB คัดลอก")
+        btn_copy.setFixedHeight(24)
+        btn_copy.setCursor(Qt.PointingHandCursor)
+        btn_copy.setStyleSheet(
+            "QPushButton {"
+            "  background: #1A3A6B; color: #7EB8F7; border: 1px solid #2A5A9B;"
+            "  border-radius: 5px; font-size: 11px; padding: 0 8px;"
+            "}"
+            "QPushButton:hover { background: #2A5A9B; color: #FFFFFF; }"
+            "QPushButton:pressed { background: #0F2A5B; }"
+        )
+        def _copy_account():
+            QApplication.clipboard().setText(account_number)
+            btn_copy.setText("\u2713 คัดลอกแล้ว")
+            QTimer.singleShot(1500, lambda: btn_copy.setText("\U0001F4CB คัดลอก"))
+        btn_copy.clicked.connect(_copy_account)
+        acc_hl.addWidget(btn_copy)
+        bl.addWidget(acc_row)
+
         bl.addWidget(self._info_label(f"ชื่อบัญชี: {account_name}"))
         rate_lbl = QLabel("อัตรา: 1 บาท = 4 เครดิต")
         rate_lbl.setStyleSheet("color: #FFD700; font-size: 12px; font-weight: 600; border: none;")
