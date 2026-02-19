@@ -84,12 +84,27 @@ class StartupWorker(QObject):
             logger.debug(f"Cache cleanup skipped: {e}")
 
         # 4. Load balance + promos + credit rates
+        from core.api_client import AuthenticationError as _AuthErr
+        from core.auth_manager import AuthManager as _AM
         try:
             data = api.get_balance_with_promos()
             self.balance_loaded.emit(data.get("credits", 0))
             self.promos_loaded.emit(data.get("active_promos", []))
             self.rates_loaded.emit(data.get("credit_rates", {}))
             self.bank_info_loaded.emit(data.get("bank_info", {}))
+        except _AuthErr:
+            # Token expired — try auto re-login with saved credentials then retry
+            if _AM().try_auto_relogin():
+                try:
+                    data = api.get_balance_with_promos()
+                    self.balance_loaded.emit(data.get("credits", 0))
+                    self.promos_loaded.emit(data.get("active_promos", []))
+                    self.rates_loaded.emit(data.get("credit_rates", {}))
+                    self.bank_info_loaded.emit(data.get("bank_info", {}))
+                except Exception as e:
+                    logger.warning(f"Balance load failed after re-login: {e}")
+            else:
+                logger.warning("Auto re-login failed — user must login manually")
         except Exception as e:
             logger.debug(f"Balance load skipped: {e}")
 
