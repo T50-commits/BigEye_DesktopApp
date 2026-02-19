@@ -47,35 +47,36 @@ COMBO_BOX_STYLE = """
 
 COMBO_POPUP_STYLE = """
     QFrame {
-        background: #16213E;
-        border: 1px solid #1A3A6B;
-        border-radius: 6px;
+        background: #1E2D50;
+        border: 2px solid #4f8cff;
+        border-radius: 8px;
     }
 """
 
 COMBO_VIEW_STYLE = """
     QListView {
-        background: #16213E;
+        background: #1E2D50;
         border: none;
         padding: 4px;
         outline: none;
-        selection-background-color: #3D2066;
-        selection-color: #FF00CC;
+        selection-background-color: #2E4A8A;
+        selection-color: #FFFFFF;
     }
     QListView::item {
         background: transparent;
-        color: #C8D0E0;
-        padding: 8px 12px;
-        min-height: 20px;
+        color: #E8EEF8;
+        padding: 9px 14px;
+        min-height: 22px;
+        font-size: 13px;
     }
     QListView::item:hover {
-        background: #2D3A5E;
+        background: #2E4A8A;
         color: #FFFFFF;
         border-radius: 4px;
     }
     QListView::item:selected {
-        background: #3D2066;
-        color: #FF00CC;
+        background: #4f8cff;
+        color: #FFFFFF;
         font-weight: bold;
         border-radius: 4px;
     }
