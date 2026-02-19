@@ -212,8 +212,12 @@ class JobManager(QObject):
         max_kw = self._settings.get("max_keywords", 45)
         title_limit = self._settings.get("title_length", 70)
         desc_limit = self._settings.get("description_length", 200)
-        title_min = int(title_limit * 0.75)
-        desc_min = int(desc_limit * 0.75)
+
+        # บอก AI ให้ใช้ limit เล็กกว่าจริง 10% เพื่อชดเชยการนับตัวอักษรผิดของ AI
+        title_limit_for_ai = int(title_limit * 0.90)
+        desc_limit_for_ai  = int(desc_limit  * 0.90)
+        title_min_for_ai   = int(title_limit * 0.65)
+        desc_min_for_ai    = int(desc_limit  * 0.65)
 
         # Video-specific instruction
         video_instruction = ""
@@ -226,10 +230,10 @@ class JobManager(QObject):
         prompt = self._prompt_template
         prompt = prompt.replace("{media_type_str}", media_type)
         prompt = prompt.replace("{keyword_count}", str(max_kw + 10))  # overfetch
-        prompt = prompt.replace("{title_min}", str(title_min))
-        prompt = prompt.replace("{title_limit}", str(title_limit))
-        prompt = prompt.replace("{desc_min}", str(desc_min))
-        prompt = prompt.replace("{desc_limit}", str(desc_limit))
+        prompt = prompt.replace("{title_min}", str(title_min_for_ai))
+        prompt = prompt.replace("{title_limit}", str(title_limit_for_ai))
+        prompt = prompt.replace("{desc_min}", str(desc_min_for_ai))
+        prompt = prompt.replace("{desc_limit}", str(desc_limit_for_ai))
         prompt = prompt.replace("{video_instruction}", video_instruction)
 
         # Insert dictionary for iStock mode
