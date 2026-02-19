@@ -51,6 +51,10 @@ class StartupWorker(QObject):
     maintenance = Signal(str)
     finished = Signal()
 
+    def __init__(self, auth_manager=None, parent=None):
+        super().__init__(parent)
+        self._auth_manager = auth_manager
+
     @Slot()
     def run(self):
         # 1. Check for update
@@ -94,7 +98,8 @@ class StartupWorker(QObject):
             self.bank_info_loaded.emit(data.get("bank_info", {}))
         except _AuthErr:
             # Token expired — try auto re-login with saved credentials then retry
-            if _AM().try_auto_relogin():
+            _am = self._auth_manager or _AM()
+            if _am.try_auto_relogin():
                 try:
                     data = api.get_balance_with_promos()
                     self.balance_loaded.emit(data.get("credits", 0))
@@ -245,7 +250,7 @@ class MainWindow(QMainWindow):
 
     def _run_startup_tasks(self):
         """Run startup tasks in background thread."""
-        self._startup_worker = StartupWorker()
+        self._startup_worker = StartupWorker(auth_manager=self._auth_manager)
         self._startup_thread = QThread()
         self._startup_worker.moveToThread(self._startup_thread)
 
