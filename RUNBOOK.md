@@ -1,41 +1,68 @@
 # BigEye Pro — คู่มือการรันระบบทั้งหมด
 
-> อัปเดตล่าสุด: กุมภาพันธ์ 2026
+> อัปเดตล่าสุด: กุมภาพันธ์ 2026 (Production Deployed)
 
 ---
 
 ## สารบัญ
 
 1. [ภาพรวมระบบ](#1-ภาพรวมระบบ)
-2. [ข้อกำหนดเบื้องต้น](#2-ข้อกำหนดเบื้องต้น)
-3. [รัน Backend API Server](#3-รัน-backend-api-server)
-4. [รัน Admin Dashboard (React/Next.js)](#4-รัน-admin-dashboard-reactnextjs)
-5. [รัน Desktop Client (PyQt5)](#5-รัน-desktop-client-pyqt5)
-6. [รันทุกระบบพร้อมกัน (One-liner)](#6-รันทุกระบบพร้อมกัน-one-liner)
-7. [ข้อมูล Login สำหรับทดสอบ](#7-ข้อมูล-login-สำหรับทดสอบ)
-8. [แก้ปัญหาที่พบบ่อย](#8-แก้ปัญหาที่พบบ่อย)
+2. [URLs Production](#2-urls-production)
+3. [ข้อกำหนดเบื้องต้น (Local Dev)](#3-ข้อกำหนดเบื้องต้น-local-dev)
+4. [รัน Backend API Server (Local)](#4-รัน-backend-api-server-local)
+5. [รัน Admin Dashboard (Local)](#5-รัน-admin-dashboard-local)
+6. [รัน Desktop Client](#6-รัน-desktop-client)
+7. [Re-deploy Production](#7-re-deploy-production)
+8. [ข้อมูล Login](#8-ข้อมูล-login)
+9. [แก้ปัญหาที่พบบ่อย](#9-แก้ปัญหาที่พบบ่อย)
 
 ---
 
 ## 1. ภาพรวมระบบ
 
-| ระบบ | เทคโนโลยี | Port | หน้าที่ |
+| ระบบ | เทคโนโลยี | สถานะ | URL |
 |:--|:--|:--|:--|
-| **Backend API** | FastAPI + Firestore | `8080` | API หลักสำหรับทุก client |
-| **Admin Dashboard** | Next.js 14 + TypeScript | `3000` | หน้าจัดการระบบสำหรับ admin |
-| **Desktop Client** | PyQt5 + Python | — | แอปตั้งโต๊ะสำหรับผู้ใช้ทั่วไป |
+| **Backend API** | FastAPI + Firestore (Cloud Run) | Production ✅ | `https://bigeye-api-671665186709.asia-southeast1.run.app` |
+| **Admin Dashboard** | Next.js 14 (Netlify) | Production ✅ | `https://legendary-raindrop-bcb488.netlify.app` |
+| **Desktop Client** | PySide6 + Python | Local App | รันบนเครื่อง user |
 
 ```
 Desktop Client ──────┐
-                      ├──► Backend API (port 8080) ──► Firestore (Cloud)
-Admin Dashboard ─────┘
+                      ├──► Cloud Run API ──► Firestore (asia-southeast1)
+Admin Dashboard ─────┘         │
+                                └──► Secret Manager (JWT, AES, Slip2Go)
 ```
 
 ---
 
-## 2. ข้อกำหนดเบื้องต้น
+## 2. URLs Production
 
-### ตรวจสอบก่อนรัน
+| รายการ | URL |
+|:--|:--|
+| **API Base URL** | `https://bigeye-api-671665186709.asia-southeast1.run.app/api/v1` |
+| **Health Check** | `https://bigeye-api-671665186709.asia-southeast1.run.app/api/v1/system/health` |
+| **Admin Dashboard** | `https://legendary-raindrop-bcb488.netlify.app` |
+| **GCP Project** | `bigeye-pro` (region: `asia-southeast1`) |
+| **Firestore** | Firebase Console → Project `bigeye-pro` |
+| **Cloud Run** | GCP Console → Cloud Run → `bigeye-api` |
+| **Netlify** | `https://app.netlify.com/projects/legendary-raindrop-bcb488` |
+
+### ทดสอบ Production API
+
+```bash
+# Health check
+curl https://bigeye-api-671665186709.asia-southeast1.run.app/api/v1/system/health
+# ควรได้: {"status":"ok","version":"2.0.0","environment":"production"}
+
+# Login admin
+curl -X POST https://bigeye-api-671665186709.asia-southeast1.run.app/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@bigeye.pro","password":"BigEye@Admin2026!","hardware_id":"ADMIN_DASHBOARD_001"}'
+```
+
+---
+
+## 3. ข้อกำหนดเบื้องต้น (Local Dev)
 
 ```bash
 # Python 3.12+
@@ -44,131 +71,72 @@ python3 --version
 # Node.js 18+
 node --version
 
-# npm 9+
-npm --version
+# gcloud CLI (สำหรับ re-deploy)
+gcloud --version
 ```
 
-### โครงสร้าง Directory ที่ต้องมี
+### โครงสร้าง Directory
 
 ```
 BigEye_Desktop_App/
 ├── server/
 │   ├── app/
-│   ├── firebase-service-account.json   ← ต้องมีไฟล์นี้
+│   ├── firebase-service-account.json   ← ต้องมีไฟล์นี้ (local dev เท่านั้น)
 │   └── requirements.txt
 ├── admin-web/
 │   ├── src/
-│   ├── package.json
-│   └── .env.local                      ← ต้องมีไฟล์นี้
+│   ├── netlify.toml                    ← มี NEXT_PUBLIC_API_URL production แล้ว
+│   └── package.json
 ├── client/
 │   └── main.py
 └── .venv/                              ← Python virtual environment
 ```
 
-### ตรวจสอบไฟล์สำคัญ
-
-```bash
-# ตรวจสอบ Firebase service account
-ls server/firebase-service-account.json
-
-# ตรวจสอบ .env.local ของ admin-web
-cat admin-web/.env.local
-# ควรเห็น: NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
-```
-
 ---
 
-## 3. รัน Backend API Server
+## 4. รัน Backend API Server (Local)
 
-### วิธีรัน
+> ใช้สำหรับ development เท่านั้น — production ใช้ Cloud Run
 
 ```bash
-# จาก root directory ของ project
 cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/server
 
 GOOGLE_APPLICATION_CREDENTIALS=firebase-service-account.json \
-ADMIN_UIDS=VIhaucFahIZj1urMzpnl \
-JWT_SECRET=bigeye-admin-secret-2026 \
+ADMIN_UIDS=IWg95X1Kw5jA2sqYpfyk \
+JWT_SECRET=dev-secret-local \
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
-### ตรวจสอบว่ารันสำเร็จ
-
-```bash
-# ควรเห็น output:
-# INFO: Application startup complete.
-# INFO: Uvicorn running on http://0.0.0.0:8080
-
-# ทดสอบ API
-curl http://localhost:8080/api/v1/admin/login \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"email":"cg.chithan@gmail.com","password":"Admin1234!"}'
-# ควรได้ token กลับมา
-```
-
-### Environment Variables ที่ใช้
+### Environment Variables (Local)
 
 | Variable | ค่า | หน้าที่ |
 |:--|:--|:--|
 | `GOOGLE_APPLICATION_CREDENTIALS` | `firebase-service-account.json` | เชื่อมต่อ Firestore |
-| `ADMIN_UIDS` | `VIhaucFahIZj1urMzpnl` | กำหนด user ที่เป็น admin |
-| `JWT_SECRET` | `bigeye-admin-secret-2026` | ลงนาม JWT token |
-| `SLIP2GO_SECRET_KEY` | *(ถ้ามี)* | ตรวจสอบสลิปโอนเงิน |
+| `ADMIN_UIDS` | `IWg95X1Kw5jA2sqYpfyk` | user ที่เป็น admin |
+| `JWT_SECRET` | *(ค่าใดก็ได้สำหรับ local)* | ลงนาม JWT token |
+| `SLIP2GO_SECRET_KEY` | *(จาก slip2go.com)* | ตรวจสอบสลิปโอนเงิน |
 
 ---
 
-## 4. รัน Admin Dashboard (React/Next.js)
+## 5. รัน Admin Dashboard (Local)
 
-### ติดตั้ง dependencies (ครั้งแรกเท่านั้น)
+> ใช้สำหรับ development เท่านั้น — production ใช้ Netlify
 
 ```bash
 cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/admin-web
+
+# ครั้งแรก
 npm install
+
+# รัน dev server (ชี้ไป localhost:8080)
+NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1 npm run dev
 ```
 
-### รัน Development Server
-
-```bash
-cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/admin-web
-npm run dev
-```
-
-### ตรวจสอบว่ารันสำเร็จ
-
-```bash
-# ควรเห็น:
-# ▲ Next.js 14.x.x
-# ✓ Ready in 1300ms
-# Local: http://localhost:3000
-
-# เปิด browser ไปที่:
-open http://localhost:3000
-```
-
-### Build สำหรับ Production
-
-```bash
-cd admin-web
-npm run build
-# ไฟล์จะอยู่ใน .next/ หรือ out/ (static export)
-```
+เปิด browser: `http://localhost:3000`
 
 ---
 
-## 5. รัน Desktop Client (PyQt5)
-
-### ตรวจสอบ Virtual Environment
-
-```bash
-# ตรวจสอบว่า .venv มีอยู่
-ls /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/.venv
-
-# Activate venv
-source /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/.venv/bin/activate
-```
-
-### รัน Desktop Client
+## 6. รัน Desktop Client
 
 ```bash
 cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App
@@ -178,161 +146,123 @@ source .venv/bin/activate
 python3 client/main.py
 ```
 
-### หมายเหตุ
-
-- Client จะเชื่อมต่อ Backend ที่ `http://localhost:8080/api/v1` โดยอัตโนมัติ
-- ต้องรัน Backend ก่อนเสมอ
-- ถ้า login ไม่ได้ ให้กด **"ออกจากระบบ"** แล้ว login ใหม่
+- Client ชี้ production API โดยอัตโนมัติ (`client/core/config.py`)
+- ถ้าต้องการชี้ local: `BIGEYE_API_URL=http://localhost:8080/api/v1 python3 client/main.py`
 
 ---
 
-## 6. รันทุกระบบพร้อมกัน (One-liner)
+## 7. Re-deploy Production
 
-### วิธีที่ 1: แยก Terminal 3 หน้าต่าง (แนะนำ)
+### Re-deploy Backend (Cloud Run)
 
-**Terminal 1 — Backend:**
 ```bash
-cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/server && \
-GOOGLE_APPLICATION_CREDENTIALS=firebase-service-account.json \
-ADMIN_UIDS=VIhaucFahIZj1urMzpnl \
-JWT_SECRET=bigeye-admin-secret-2026 \
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/server
+
+gcloud run deploy bigeye-api \
+  --source . \
+  --region asia-southeast1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --memory 512Mi --cpu 1 \
+  --concurrency 20 \
+  --min-instances 0 --max-instances 5 \
+  --timeout 60 \
+  --set-secrets "JWT_SECRET=JWT_SECRET:latest,AES_KEY=AES_KEY:latest,SLIP2GO_SECRET_KEY=SLIP2GO_SECRET_KEY:latest" \
+  --set-env-vars "SLIP2GO_API_URL=https://connect.slip2go.com,SLIP2GO_RECEIVER_NAME=พงษ์เทพ,GOOGLE_CLOUD_PROJECT=bigeye-pro,ENVIRONMENT=production,ADMIN_UIDS=IWg95X1Kw5jA2sqYpfyk" \
+  --project=bigeye-pro
 ```
 
-**Terminal 2 — Admin Dashboard:**
+### Re-deploy Admin Dashboard (Netlify)
+
 ```bash
-cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/admin-web && \
-npm run dev
+cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App/admin-web
+
+# Build
+NEXT_PUBLIC_API_URL="https://bigeye-api-671665186709.asia-southeast1.run.app/api/v1" npm run build
+
+# Deploy ไปที่ site เดิม
+npx --yes netlify-cli deploy --dir=.next --prod --site=a7e665cb-c6e3-4984-b372-e09d29dc51f7
 ```
 
-**Terminal 3 — Desktop Client:**
-```bash
-cd /Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App && \
-source .venv/bin/activate && \
-python3 client/main.py
-```
-
-### วิธีที่ 2: Script เดียว (Background processes)
+### อัพเดท Secret ใน Secret Manager
 
 ```bash
-#!/bin/bash
-# save เป็น start_all.sh แล้วรัน: bash start_all.sh
+# เพิ่ม version ใหม่ให้ secret (เช่น เปลี่ยน SLIP2GO_SECRET_KEY)
+echo -n "NEW_SECRET_VALUE" | gcloud secrets versions add SLIP2GO_SECRET_KEY --data-file=- --project=bigeye-pro
 
-ROOT="/Users/pongtepchithan/Desktop/iStockMetaData_Database/BigEye_Desktop_App"
-
-echo "🚀 Starting Backend API..."
-cd "$ROOT/server"
-GOOGLE_APPLICATION_CREDENTIALS=firebase-service-account.json \
-ADMIN_UIDS=VIhaucFahIZj1urMzpnl \
-JWT_SECRET=bigeye-admin-secret-2026 \
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 &
-BACKEND_PID=$!
-echo "   Backend PID: $BACKEND_PID"
-
-sleep 3
-
-echo "🌐 Starting Admin Dashboard..."
-cd "$ROOT/admin-web"
-npm run dev &
-FRONTEND_PID=$!
-echo "   Frontend PID: $FRONTEND_PID"
-
-sleep 3
-
-echo "🖥  Starting Desktop Client..."
-cd "$ROOT"
-source .venv/bin/activate
-python3 client/main.py &
-CLIENT_PID=$!
-echo "   Client PID: $CLIENT_PID"
-
-echo ""
-echo "✅ All systems started!"
-echo "   Backend:   http://localhost:8080"
-echo "   Dashboard: http://localhost:3000"
-echo ""
-echo "Press Ctrl+C to stop all..."
-wait
-```
-
-### หยุดทุกระบบ
-
-```bash
-# หยุด Backend (port 8080)
-lsof -ti:8080 | xargs kill -9
-
-# หยุด Admin Dashboard (port 3000)
-lsof -ti:3000 | xargs kill -9
-
-# หยุด Desktop Client
-pkill -f "python3 client/main.py"
+# เพิ่ม LINE_NOTIFY_TOKEN (ถ้ายังไม่มี)
+echo -n "YOUR_LINE_TOKEN" | gcloud secrets create LINE_NOTIFY_TOKEN --data-file=- --project=bigeye-pro
+gcloud secrets add-iam-policy-binding LINE_NOTIFY_TOKEN \
+  --member="serviceAccount:671665186709-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor" --project=bigeye-pro
+gcloud run services update bigeye-api --region asia-southeast1 \
+  --update-secrets "LINE_NOTIFY_TOKEN=LINE_NOTIFY_TOKEN:latest" --project=bigeye-pro
 ```
 
 ---
 
-## 7. ข้อมูล Login สำหรับทดสอบ
+## 8. ข้อมูล Login
 
-### Admin Dashboard (`localhost:3000`)
+### Admin Account (Production)
 
 | Field | ค่า |
 |:--|:--|
-| Email | `cg.chithan@gmail.com` |
-| Password | `Admin1234!` |
+| Email | `admin@bigeye.pro` |
+| Password | `BigEye@Admin2026!` |
+| User ID | `IWg95X1Kw5jA2sqYpfyk` |
+| Hardware ID | `ADMIN_DASHBOARD_001` |
 
-### Desktop Client
+### GCP / Cloud
 
-| Field | ค่า |
+| รายการ | ค่า |
 |:--|:--|
-| Email | `cg.chithan@gmail.com` |
-| Password | `Admin1234!` |
+| GCP Project | `bigeye-pro` |
+| GCP Account | `cg.chithan@gmail.com` |
+| Netlify Account | `cg.chithan@gmail.com` |
+| Netlify Site ID | `a7e665cb-c6e3-4984-b372-e09d29dc51f7` |
 
-### Test Users
+### Secrets ใน Secret Manager
 
-| Email | Password | หมายเหตุ |
-|:--|:--|:--|
-| `test@bigeye.pro` | *(ดูใน Firestore)* | Test user 1 |
-| `test02@bigeye.pro` | *(ดูใน Firestore)* | Test user 2 |
+| Secret | หมายเหตุ |
+|:--|:--|
+| `JWT_SECRET` | สร้างอัตโนมัติตอน deploy (random hex 32) |
+| `AES_KEY` | 64 hex chars — ต้องตรงกับ `AES_KEY_HEX` ใน `client/core/config.py` |
+| `SLIP2GO_SECRET_KEY` | จาก slip2go.com dashboard |
+
+> ⚠️ **หมายเหตุ AES_KEY:** ค่าปัจจุบันใช้ค่า default `0123456789abcdef...` ควรเปลี่ยนเป็นค่าสุ่มจริงก่อนใช้งาน production จริง และอัพเดทค่าเดียวกันใน `client/core/config.py` บรรทัด `AES_KEY_HEX`
 
 ---
 
-## 8. แก้ปัญหาที่พบบ่อย
+## 9. แก้ปัญหาที่พบบ่อย
+
+### ❌ API ตอบ 500 / Container crash
+
+```bash
+# ดู logs ล่าสุดจาก Cloud Run
+gcloud run services logs read bigeye-api --region asia-southeast1 --project=bigeye-pro --limit 50
+```
 
 ### ❌ Admin Dashboard หน้าดำ / ไม่แสดง Login Form
 
 ```bash
-# 1. ลบ cache แล้ว restart
 cd admin-web
 rm -rf .next
 npm run dev
-
-# 2. เปิด browser ที่ http://localhost:3000/login/
-# 3. กด Cmd+Shift+R (Hard Refresh)
+# เปิด http://localhost:3000/login
+# กด Cmd+Shift+R (Hard Refresh)
 ```
 
-### ❌ Backend ไม่ start — "Address already in use"
+### ❌ Backend Local ไม่ start — "Address already in use"
 
 ```bash
-# หยุด process ที่ใช้ port 8080
 lsof -ti:8080 | xargs kill -9
-# แล้วรัน backend ใหม่
 ```
 
 ### ❌ Desktop Client แสดง 0 เครดิต / 401 Unauthorized
 
 ```
-สาเหตุ: Token หมดอายุหรือ password ถูกเปลี่ยน
+สาเหตุ: Token หมดอายุ (7 วัน) หรือ password ถูกเปลี่ยน
 แก้ไข: กด "ออกจากระบบ" ใน client แล้ว login ใหม่
-```
-
-### ❌ Backend Error: "GOOGLE_APPLICATION_CREDENTIALS not set"
-
-```bash
-# ตรวจสอบว่าไฟล์ service account มีอยู่
-ls server/firebase-service-account.json
-
-# รันพร้อม credentials
-cd server
-GOOGLE_APPLICATION_CREDENTIALS=firebase-service-account.json python3 -m uvicorn app.main:app --port 8080
 ```
 
 ### ❌ npm install ล้มเหลว
@@ -355,21 +285,28 @@ pip install -r server/requirements.txt
 ### ❌ Firestore Index Error (ใน backend logs)
 
 ```
-สาเหตุ: Query บาง query ต้องการ Composite Index ใน Firestore
+สาเหตุ: Query ต้องการ Composite Index
 แก้ไข: คลิก URL ใน error message เพื่อสร้าง index อัตโนมัติ
        หรือไปที่ Firebase Console > Firestore > Indexes
 ```
 
+### ❌ gcloud: "not logged in"
+
+```bash
+gcloud auth login
+gcloud config set project bigeye-pro
+```
+
 ---
 
-## ลำดับการรันที่ถูกต้อง
+## ลำดับการรัน (Local Dev)
 
 ```
-1. Backend API  (รอจนเห็น "Application startup complete")
+1. Backend API  →  รอจนเห็น "Application startup complete"
        ↓
-2. Admin Dashboard  (รอจนเห็น "Ready in Xms")
+2. Admin Dashboard  →  รอจนเห็น "Ready in Xms"
        ↓
-3. Desktop Client  (เปิดหน้าต่างขึ้นมา)
+3. Desktop Client  →  หน้าต่างเปิดขึ้นมา
 ```
 
 > ⚠️ **สำคัญ:** ต้องรัน Backend ก่อนเสมอ ทั้ง Admin Dashboard และ Desktop Client ต้องการ Backend เพื่อ login และดึงข้อมูล
