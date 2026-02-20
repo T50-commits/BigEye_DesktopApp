@@ -211,53 +211,85 @@ class JobManager(QObject):
             self.job_failed.emit(f"ไม่สามารถเริ่มประมวลผลได้: {e}")
 
     def stop_job(self):
-        """Stop the current job immediately (cancel) and refund 100%."""
+        """Stop immediately: charge completed files, refund only unprocessed ones, export CSV."""
         if not self._is_running:
             return
-        logger.info("Canceling job immediately...")
+        logger.info("Stopping job (partial finalize)...")
         self._is_running = False
         self._queue.stop()
 
-        # Finalize with 0 success/failed to trigger 100% refund
+        # Count what's done so far from _results
+        ok = sum(1 for r in self._results.values() if r.get("status") == "success")
+        failed = sum(1 for r in self._results.values() if r.get("status") == "error")
+        skipped = (len(self._files) - ok - failed)
+        if skipped < 0:
+            skipped = 0
+        ok_photos = sum(1 for fn in self._results if is_image(fn) and self._results[fn].get("status") == "success")
+        ok_videos = sum(1 for fn in self._results if is_video(fn) and self._results[fn].get("status") == "success")
+        all_photos = sum(1 for fn in self._results if is_image(fn))
+        all_videos = sum(1 for fn in self._results if is_video(fn))
+
+        platform = self._settings.get("platform", "iStock")
+        model = self._settings.get("model", "gemini-2.5-pro")
+        rates = self._settings.get("platform_rate", {"photo": 3, "video": 3})
+        if isinstance(rates, int):
+            rates = {"photo": rates, "video": rates}
+
+        # Finalize with actual completed counts → backend calculates partial refund
         refunded = 0
         new_balance = self._settings.get("balance", 0)
         try:
-            from core import api
-            fin = api.finalize_job(self._job_token, 0, 0, 0, 0)
+            fin = api.finalize_job(self._job_token, ok, failed, all_photos, all_videos)
             refunded = fin.get("refunded", 0)
             new_balance = fin.get("balance", new_balance)
             self.credit_updated.emit(new_balance)
         except Exception as e:
-            logger.warning(f"Cancel finalize failed: {e}")
-            # Estimate full refund locally if API fails
-            rates = self._settings.get("platform_rate", {"photo": 3, "video": 3})
-            if isinstance(rates, int):
-                rates = {"photo": rates, "video": rates}
-            photos = sum(1 for fn in self._files if is_image(fn))
-            videos = sum(1 for fn in self._files if is_video(fn))
-            refunded = (photos * rates.get("photo", 3)) + (videos * rates.get("video", 3))
+            logger.warning(f"Stop finalize failed: {e}")
+            charged = (ok_photos * rates.get("photo", 3)) + (ok_videos * rates.get("video", 3))
+            reserved = (len(self._files)) * rates.get("photo", 3)
+            refunded = max(0, reserved - charged)
 
-        # Cleanup resources immediately
+        # Export CSV for completed files only
+        csv_files = []
+        if ok > 0 and self._folder_path:
+            keyword_style = self._settings.get("keyword_style", "")
+            if keyword_style.lower().startswith("single"):
+                style_tag = "Single"
+            elif "hybrid" in keyword_style.lower():
+                style_tag = "Hybrid"
+            else:
+                style_tag = ""
+            csv_files = CSVExporter.export_for_platform(
+                platform, self._results, self._folder_path, model, style_tag,
+            )
+
+        # Move completed files to output folder
+        output_folder = ""
+        if ok > 0 and self._folder_path:
+            output_folder = self._move_completed_files(csv_files)
+
+        # Cleanup resources
         self._engine.cleanup_prefetched()
         self._engine.delete_cache()
         self._copyright_guard.clear()
         Transcoder.cleanup_all_proxies()
         JournalManager.delete_journal()
 
+        charged = (ok_photos * rates.get("photo", 3)) + (ok_videos * rates.get("video", 3))
         summary = {
-            "successful": 0,
-            "failed": 0,
-            "skipped": len(self._files),
-            "photo_count": 0,
-            "video_count": 0,
-            "charged": 0,
+            "successful": ok,
+            "failed": failed,
+            "skipped": skipped,
+            "photo_count": all_photos,
+            "video_count": all_videos,
+            "charged": charged,
             "refunded": refunded,
             "balance": new_balance,
-            "csv_files": [],
-            "output_folder": "",
-            "cancelled": True
+            "csv_files": csv_files,
+            "output_folder": output_folder,
+            "cancelled": True,
         }
-        logger.info(f"Job cancelled: refunded={refunded}")
+        logger.info(f"Job stopped: {ok} ok, {failed} failed, {skipped} skipped, refunded={refunded}")
         self.job_completed.emit(summary)
 
     # ── File processing (runs on worker thread) ──

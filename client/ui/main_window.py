@@ -444,13 +444,25 @@ class MainWindow(QMainWindow):
         self.gallery.update_progress(self._process_total, self._process_total)
 
         if cancelled:
-            self.status_bar.showMessage(
-                f"ยกเลิกแล้ว — คืนเครดิต {refunded} cr ทั้งหมด"
-            )
-            self._results.clear()
-            self.gallery.reset_file_statuses()
-            self.inspector.clear()
-            self.inspector.enable_export(False)
+            skipped = summary.get("skipped", 0)
+            if successful > 0:
+                # Partial results exist — show summary dialog with CSV
+                self.status_bar.showMessage(
+                    f"หยุดกลางคัน — สำเร็จ {successful} ไฟล์, ยกเลิก {skipped} ไฟล์, คืนเครดิต {refunded} cr"
+                )
+                self.inspector.enable_export(len(csv_files) > 0)
+                dialog = SummaryDialog(
+                    successful, failed, img_count, vid_count,
+                    charged, refunded, balance, csv_files, output_folder, self
+                )
+                dialog.exec()
+            else:
+                # Nothing completed — clear everything
+                self.status_bar.showMessage("ยกเลิกแล้ว — ไม่มีไฟล์สำเร็จ คืนเครดิตทั้งหมด")
+                self._results.clear()
+                self.gallery.reset_file_statuses()
+                self.inspector.clear()
+                self.inspector.enable_export(False)
             return
 
         # Enable Re-export button after auto-save
@@ -510,8 +522,8 @@ class MainWindow(QMainWindow):
         if not self._is_processing:
             return
         reply = QMessageBox.question(
-            self, "ยกเลิกประมวลผล",
-            "คุณต้องการยกเลิกการประมวลผลใช่หรือไม่?\n\n• งานนี้จะถูกยกเลิกทันที\n• ระบบจะไม่สร้างไฟล์ CSV\n• ระบบจะคืนเครดิตให้คุณเต็มจำนวน 100%",
+            self, "หยุดประมวลผล",
+            "คุณต้องการหยุดประมวลผลใช่หรือไม่?\n\n• หยุดทันที ไม่รอไฟล์ที่กำลังประมวลผลอยู่\n• ไฟล์ที่ประมวลผลสำเร็จแล้วจะได้รับ CSV และถูกหักเครดิตตามปกติ\n• ไฟล์ที่ยังไม่ได้ประมวลผลจะได้รับเครดิตคืน",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
