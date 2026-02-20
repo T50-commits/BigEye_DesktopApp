@@ -28,18 +28,40 @@ class InspectorPreview(QLabel):
         self._is_video = False
 
     def set_image(self, filepath: str):
-        if not filepath or not os.path.exists(filepath):
-            self._pixmap_src = None
-            self._is_video = False
-            self.setText("No Preview")
-            return
-
-        self._is_video = is_video(filepath)
+        # Even if the file was moved to the output folder (after job completes),
+        # we still want to show the preview. Check if the original path exists.
         load_path = filepath
+        if not filepath or not os.path.exists(filepath):
+            # Check if it was moved to a BigEye_Output folder
+            if filepath:
+                folder_path = os.path.dirname(filepath)
+                filename = os.path.basename(filepath)
+                # Try to find the output folder created by the app
+                output_folders = [d for d in os.listdir(folder_path) if d.startswith("BigEye_Output_")]
+                found_moved_file = False
+                for out_folder in output_folders:
+                    potential_path = os.path.join(folder_path, out_folder, filename)
+                    if os.path.exists(potential_path):
+                        load_path = potential_path
+                        found_moved_file = True
+                        break
+                
+                if not found_moved_file:
+                    self._pixmap_src = None
+                    self._is_video = False
+                    self.setText("No Preview")
+                    return
+            else:
+                self._pixmap_src = None
+                self._is_video = False
+                self.setText("No Preview")
+                return
+
+        self._is_video = is_video(load_path)
 
         # For video files, extract first frame via FFmpeg
         if self._is_video:
-            frame_path = extract_first_frame(filepath)
+            frame_path = extract_first_frame(load_path)
             if frame_path:
                 load_path = frame_path
             else:

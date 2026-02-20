@@ -439,6 +439,16 @@ class MainWindow(QMainWindow):
         csv_files = summary.get("csv_files", [])
         output_folder = summary.get("output_folder", "")
 
+        # Fix Issue 1: If a file is selected in the inspector and it was moved, update its path
+        if output_folder and hasattr(self, '_selected_file') and self._selected_file:
+            import os
+            filename = os.path.basename(self._selected_file)
+            if self._results.get(filename, {}).get("status") == "success":
+                new_path = os.path.join(output_folder, filename)
+                if os.path.exists(new_path):
+                    self._selected_file = new_path
+                    self.inspector.show_file(new_path)
+
         cancelled = summary.get("cancelled", False)
         self.credit_bar.set_balance(balance)
         self.gallery.update_progress(self._process_total, self._process_total)
@@ -463,6 +473,9 @@ class MainWindow(QMainWindow):
                 self.gallery.reset_file_statuses()
                 self.inspector.clear()
                 self.inspector.enable_export(False)
+            
+            # Fix Issue 2: Clear "canceling..." text after everything is done
+            self.gallery.progress_text.setText("")
             return
 
         # Enable Re-export button after auto-save
