@@ -115,18 +115,32 @@ class GeminiEngine:
         if self._model is None:
             with self._model_lock:
                 if self._model is None:
-                    kwargs = {
-                        "model_name": self._model_name,
-                        "generation_config": genai.GenerationConfig(
-                            response_mime_type="application/json",
-                            temperature=0.3,
-                        ),
-                    }
+                    gen_config = genai.GenerationConfig(
+                        response_mime_type="application/json",
+                        temperature=0.3,
+                    )
                     if self._cache:
-                        kwargs["cached_content"] = self._cache
-                    elif self._system_prompt:
-                        kwargs["system_instruction"] = self._system_prompt
-                    self._model = genai.GenerativeModel(**kwargs)
+                        # SDK 0.8+ requires from_cached_content() instead of cached_content kwarg
+                        try:
+                            self._model = genai.GenerativeModel.from_cached_content(
+                                cached_content=self._cache,
+                                generation_config=gen_config,
+                            )
+                        except Exception as e:
+                            logger.warning(f"from_cached_content failed: {e} — falling back to system_instruction")
+                            self._cache = None
+                            self._cache_name = ""
+                            self._model = genai.GenerativeModel(
+                                model_name=self._model_name,
+                                generation_config=gen_config,
+                                system_instruction=self._system_prompt or None,
+                            )
+                    else:
+                        self._model = genai.GenerativeModel(
+                            model_name=self._model_name,
+                            generation_config=gen_config,
+                            system_instruction=self._system_prompt or None,
+                        )
         return self._model
 
     # ── Context Caching ──
