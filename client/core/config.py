@@ -53,7 +53,6 @@ PLATFORM_RATES = {
 # Note: gemini-1.5-x and gemini-2.0-x are deprecated (shutdown ~2026)
 # gemini-3-x are Preview (may require allowlist access)
 AI_MODELS = [
-    "gemini-3.1-pro-preview",
     "gemini-3-pro-preview",
     "gemini-3-flash-preview",
     "gemini-2.5-pro",
@@ -63,11 +62,6 @@ AI_MODELS = [
 
 # AI Model metadata: {model_id: {label, supports_cache, description}}
 AI_MODEL_INFO = {
-    "gemini-3.1-pro-preview": {
-        "label": "Gemini 3.1 Pro (Preview)",
-        "supports_cache": True,
-        "description": "ใหม่ที่สุด | ฉลาดที่สุด | รองรับ Video/Audio/PDF",
-    },
     "gemini-3-pro-preview": {
         "label": "Gemini 3 Pro (Preview)",
         "supports_cache": False,
