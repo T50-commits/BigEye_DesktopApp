@@ -64,12 +64,11 @@ class Transcoder:
 
     @staticmethod
     def create_proxy(input_path: str, output_path: str = "",
-                     height: int = 480, max_duration: int = 0) -> str:
+                     height: int = 360, max_duration: int = 30) -> str:
         """
-        Create a 480p proxy video for Gemini upload.
+        Create a heavily compressed proxy video for Gemini upload.
+        Resolution: 360p (or lower), Framerate: 8fps, Max Duration: 30s.
         Returns output path on success, empty string on failure.
-        If output_path is empty, auto-generates in proxy cache dir.
-        If max_duration > 0, limits the video to that many seconds.
         """
         if not output_path:
             output_path = Transcoder.get_proxy_path(input_path)
@@ -86,17 +85,17 @@ class Transcoder:
                 "-i", input_path,
             ]
 
-            # Duration limit
+            # Duration limit (Aggressive cap at 30s for AI to just see the context)
             if max_duration > 0:
                 cmd.extend(["-t", str(max_duration)])
 
             cmd.extend([
-                "-vf", f"scale=-2:360",
+                "-vf", f"scale=-2:{height}",
                 "-c:v", "libx264",
                 "-preset", "ultrafast",
-                "-crf", "32",
-                "-r", "15",
-                "-an",  # No audio
+                "-crf", "36",       # High compression
+                "-r", "8",          # Very low framerate (sufficient for AI)
+                "-an",              # No audio
                 output_path,
             ])
 
@@ -104,7 +103,7 @@ class Transcoder:
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
-                timeout=300,
+                timeout=120, # Reduced timeout for faster fail
             )
 
             if result.returncode == 0 and os.path.isfile(output_path):

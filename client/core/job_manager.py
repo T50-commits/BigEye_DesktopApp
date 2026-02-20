@@ -4,10 +4,10 @@ Orchestrates the full processing pipeline:
   reserve → decrypt → cache → process → finalize → CSV → summary → cleanup
 """
 import os
-import shutil
-import logging
 import time
+import logging
 import threading
+import concurrent.futures
 
 from PySide6.QtCore import QObject, Signal
 
@@ -26,6 +26,20 @@ from utils.security import decrypt_aes
 logger = logging.getLogger("bigeye")
 
 CACHE_THRESHOLD = 20  # Create context cache if file count >= this
+
+
+def _video_worker_task(filepath: str, prompt: str, system_prompt: str, api_key: str, model_name: str) -> dict:
+    """Isolated worker process task for Gemini video processing. Solves SSL connection pool sharing."""
+    engine = GeminiEngine()
+    engine.set_api_key(api_key)
+    engine.set_model(model_name)
+    try:
+        result = engine.process_video(filepath, prompt, system_prompt)
+        return {"status": "success", "result": result}
+    except GeminiError as e:
+        return {"status": "error", "error_type": e.error_type.value, "error": str(e)}
+    except Exception as e:
+        return {"status": "error", "error_type": "UNKNOWN", "error": str(e)}
 
 
 class JobManager(QObject):
@@ -52,9 +66,7 @@ class JobManager(QObject):
         self._prompt_template = ""  # raw prompt with {placeholders}
         self._dictionary = ""       # keyword dictionary for iStock
         self._folder_path = ""
-        self._video_queue = []       # ordered list of video filepaths for pipeline
-        self._video_index = 0        # next video to prefetch
-        self._prefetch_lock = threading.Lock()
+        self._video_pool = None     # ProcessPoolExecutor for video isolation
 
         # Connect queue signals
         self._queue.file_completed.connect(self._on_file_completed)
@@ -179,21 +191,11 @@ class JobManager(QObject):
                 self._job_token, len(files), platform, journal_rate,
             )
 
-            # ── Step 9: Build video pipeline queue ──
-            self._video_queue = [f for f in files if is_video(f)]
-            self._video_index = 0
-
-            # Pre-upload first video proxy while images start processing
-            if self._video_queue:
-                first_vid = self._video_queue[0]
-                proxy = Transcoder.create_proxy(first_vid)
-                prefetch_path = proxy if proxy else first_vid
-                threading.Thread(
-                    target=self._engine.prefetch_video,
-                    args=(prefetch_path,),
-                    daemon=True,
-                ).start()
-                self._video_index = 1
+            # ── Step 9: Initialize Video Process Pool ──
+            video_files = [f for f in files if is_video(f)]
+            if video_files:
+                # Use ProcessPoolExecutor to bypass GIL and separate SSL context per video process
+                self._video_pool = concurrent.futures.ProcessPoolExecutor(max_workers=max_vid)
 
             # ── Step 10: Start processing via QueueManager ──
             self.status_update.emit("Processing...")
@@ -217,6 +219,10 @@ class JobManager(QObject):
         logger.info("Stopping job (partial finalize)...")
         self._is_running = False
         self._queue.stop()
+
+        if self._video_pool:
+            self._video_pool.shutdown(wait=False, cancel_futures=True)
+            self._video_pool = None
 
         # Count what's done so far from _results
         ok = sum(1 for r in self._results.values() if r.get("status") == "success")
@@ -350,13 +356,35 @@ class JobManager(QObject):
                 proxy = Transcoder.create_proxy(filepath)
                 process_path = proxy if proxy else filepath
 
-                # Pipeline: prefetch next video while this one generates
-                self._prefetch_next_video()
+                # Submit to isolated process pool to prevent SSL connection sharing issues
+                api_key = self._settings.get("api_key", "")
+                model_name = self._settings.get("model", "gemini-2.5-pro")
+                
+                future = self._video_pool.submit(
+                    _video_worker_task,
+                    process_path,
+                    prompt,
+                    self._prompt_template,
+                    api_key,
+                    model_name
+                )
+                # Wait for process to complete
+                process_result = future.result()
 
-                result = self._engine.process_video(process_path, prompt)
                 # Cleanup proxy
                 if proxy:
                     Transcoder.cleanup_proxy(proxy)
+
+                if process_result.get("status") == "error":
+                    # Convert dict error back to exception for consistent handling
+                    err_type_str = process_result.get("error_type", "UNKNOWN")
+                    try:
+                        err_type = GeminiErrorType(err_type_str)
+                    except ValueError:
+                        err_type = GeminiErrorType.UNKNOWN
+                    raise GeminiError(process_result.get("error", "Unknown error"), err_type)
+
+                result = process_result.get("result", {})
             else:
                 result = self._engine.process_photo(filepath, prompt)
 
@@ -410,27 +438,6 @@ class JobManager(QObject):
                 "error_type": "UNKNOWN",
                 "processing_time": time.time() - start_time,
             }
-
-    def _prefetch_next_video(self):
-        """Pre-upload the next video proxy in background while current video generates."""
-        with self._prefetch_lock:
-            if self._video_index >= len(self._video_queue):
-                return
-            # จำกัด prefetch ไม่เกิน 2 ไฟล์ค้างใน Gemini
-            if len(self._engine._prefetched) >= 2:
-                return
-            next_vid = self._video_queue[self._video_index]
-            self._video_index += 1
-
-        def _do_prefetch():
-            try:
-                proxy = Transcoder.create_proxy(next_vid)
-                prefetch_path = proxy if proxy else next_vid
-                self._engine.prefetch_video(prefetch_path)
-            except Exception as e:
-                logger.warning(f"Prefetch thread error: {e}")
-
-        threading.Thread(target=_do_prefetch, daemon=True).start()
 
     def _post_process_keywords(self, keywords: list) -> list:
         """Apply keyword processing based on platform/style settings."""

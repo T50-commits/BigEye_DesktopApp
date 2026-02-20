@@ -87,8 +87,6 @@ class GeminiEngine:
         self._model_lock = threading.Lock()           # Protect lazy model creation
         self._api_sem = threading.Semaphore(6)          # Allow parallel generates
         self._upload_lock = threading.Lock()            # Serialize video uploads (SSL corruption fix)
-        self._prefetch_lock = threading.Lock()          # Protect prefetched dict
-        self._prefetched = {}                           # {filepath: video_file} pre-uploaded videos
 
     # ── Configuration ──
 
@@ -213,36 +211,13 @@ class GeminiEngine:
             timeout=TIMEOUT_PHOTO,
         )
 
-    def prefetch_video(self, filepath: str):
-        """Pre-upload video. จำกัดไม่เกิน 2 ไฟล์ค้างใน prefetched."""
-        with self._prefetch_lock:
-            if len(self._prefetched) >= 2:
-                logger.debug("Prefetch skipped: already 2 files queued")
-                return
-        try:
-            video_file = self._upload_video(filepath)
-            with self._prefetch_lock:
-                self._prefetched[filepath] = video_file
-            logger.info(f"Prefetched video: {os.path.basename(filepath)}")
-        except Exception as e:
-            logger.warning(f"Prefetch failed for {os.path.basename(filepath)}: {e}")
-            # Don't store — process_video will upload normally
-
     def process_video(self, filepath: str, prompt: str,
                       system_prompt: str = "") -> dict:
         """
         Process a video file with Gemini API.
-        Uses prefetched upload if available, otherwise uploads now.
-        Video generate is serialized to prevent SSL corruption,
-        but upload runs in parallel with generate (pipeline).
+        Uploads the video proxy and runs generate_content.
         """
-        # Use prefetched upload if available
-        with self._prefetch_lock:
-            video_file = self._prefetched.pop(filepath, None)
-        if video_file:
-            logger.info(f"Using prefetched upload: {video_file.name}")
-        else:
-            video_file = self._upload_video(filepath)
+        video_file = self._upload_video(filepath)
         try:
             return self._generate_with_retry(
                 contents=[video_file, prompt],
@@ -256,14 +231,8 @@ class GeminiEngine:
                 pass  # ข้ามไป Gemini ลบเองใน 48 ชม.
 
     def cleanup_prefetched(self):
-        """Delete any prefetched videos that were never used."""
-        for fp, vf in self._prefetched.items():
-            try:
-                genai.delete_file(vf.name)
-                logger.debug(f"Cleaned prefetched: {vf.name}")
-            except Exception:
-                pass
-        self._prefetched.clear()
+        """Deprecated: No-op for backward compatibility."""
+        pass
 
     # ── Internal helpers ──
 
