@@ -244,10 +244,6 @@ def get_active_promos_for_client() -> list[dict]:
         if not display.get("show_in_client", True):
             continue
 
-        # Don't include code-only promos in public list
-        if cond.get("require_code"):
-            continue
-
         ends_at = None
         if end_date:
             if hasattr(end_date, "isoformat"):
