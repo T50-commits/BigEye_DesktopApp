@@ -397,6 +397,7 @@ class JobManager(QObject):
 
         ok = sum(1 for r in self._results.values() if r.get("status") == "success")
         failed = sum(1 for r in self._results.values() if r.get("status") == "error")
+        skipped = sum(1 for r in self._results.values() if r.get("status") == "skipped")
         photos = sum(1 for fn in self._results if is_image(fn))
         videos = sum(1 for fn in self._results if is_video(fn))
         platform = self._settings.get("platform", "iStock")
@@ -453,6 +454,7 @@ class JobManager(QObject):
         summary = {
             "successful": ok,
             "failed": failed,
+            "skipped": skipped,
             "photo_count": photos,
             "video_count": videos,
             "charged": charged,
@@ -462,7 +464,7 @@ class JobManager(QObject):
             "output_folder": output_folder,
         }
 
-        logger.info(f"Job complete: {ok} ok, {failed} failed, refunded={refunded}")
+        logger.info(f"Job complete: {ok} ok, {failed} failed, {skipped} skipped, refunded={refunded}")
         self.job_completed.emit(summary)
 
     def _move_completed_files(self, csv_files: list) -> str:

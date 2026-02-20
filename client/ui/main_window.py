@@ -439,11 +439,17 @@ class MainWindow(QMainWindow):
         csv_files = summary.get("csv_files", [])
         output_folder = summary.get("output_folder", "")
 
+        skipped = summary.get("skipped", 0)
         self.credit_bar.set_balance(balance)
         self.gallery.update_progress(self._process_total, self._process_total)
-        self.status_bar.showMessage(
-            f"เสร็จสิ้น — สำเร็จ {successful} ไฟล์, ล้มเหลว {failed} ไฟล์"
-        )
+        if skipped > 0:
+            self.status_bar.showMessage(
+                f"หยุดกลางคัน — สำเร็จ {successful} ไฟล์, ยกเลิก {skipped} ไฟล์, คืนเครดิต {refunded} cr"
+            )
+        else:
+            self.status_bar.showMessage(
+                f"เสร็จสิ้น — สำเร็จ {successful} ไฟล์, ล้มเหลว {failed} ไฟล์"
+            )
 
         # Enable Re-export button after auto-save
         self.inspector.enable_export(True)
@@ -495,22 +501,20 @@ class MainWindow(QMainWindow):
             self._job_thread = None
 
     def _on_stop(self):
-        """Stop processing with confirmation."""
+        """Stop processing with confirmation — graceful: wait for in-flight files then finalize."""
         if not self._is_processing:
             return
         reply = QMessageBox.question(
             self, "หยุดประมวลผล",
-            "คุณต้องการหยุดประมวลผลใช่หรือไม่?\nไฟล์ที่ยังไม่ได้ประมวลผลจะได้รับเครดิตคืน",
+            "คุณต้องการหยุดประมวลผลใช่หรือไม่?\nไฟล์ที่กำลังประมวลผลอยู่จะเสร็จก่อน จากนั้นระบบจะสร้าง CSV และคืนเครดิตอัตโนมัติ",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
+            # Signal queue to stop accepting new files — do NOT disconnect signals yet
+            # Let in-flight workers finish → all_completed fires → _on_job_completed handles CSV/folder/refund
             self._job_manager.stop_job()
-            self._is_processing = False
-            self._set_processing_state(False)
-            self.gallery.reset_progress()
-            self._disconnect_job_signals()
-            self._cleanup_job_thread()
-            self.status_bar.showMessage("หยุดประมวลผลแล้ว")
+            self.gallery.progress_text.setText("กำลังหยุด... รอไฟล์ปัจจุบันเสร็จ")
+            self.status_bar.showMessage("กำลังหยุดประมวลผล...")
 
     def _on_escape(self):
         if self._is_processing:
