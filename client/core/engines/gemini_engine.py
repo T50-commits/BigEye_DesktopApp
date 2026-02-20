@@ -87,7 +87,6 @@ class GeminiEngine:
         self._model_lock = threading.Lock()           # Protect lazy model creation
         self._api_sem = threading.Semaphore(6)          # Allow parallel generates
         self._upload_lock = threading.Lock()            # Serialize video uploads (SSL corruption fix)
-        self._video_generate_lock = threading.Lock()    # Serialize video generate to prevent SSL corruption
         self._prefetch_lock = threading.Lock()          # Protect prefetched dict
         self._prefetched = {}                           # {filepath: video_file} pre-uploaded videos
 
@@ -245,15 +244,11 @@ class GeminiEngine:
         else:
             video_file = self._upload_video(filepath)
         try:
-            # Serialize video generate to prevent SSL state corruption
-            # Upload ของวิดีโอถัดไป (prefetch) ยังทำพร้อมกันได้
-            # เพราะใช้คนละ lock (_upload_lock vs _video_generate_lock)
-            with self._video_generate_lock:
-                return self._generate_with_retry(
-                    contents=[video_file, prompt],
-                    system_prompt=system_prompt,
-                    timeout=TIMEOUT_VIDEO,
-                )
+            return self._generate_with_retry(
+                contents=[video_file, prompt],
+                system_prompt=system_prompt,
+                timeout=TIMEOUT_VIDEO,
+            )
         finally:
             try:
                 genai.delete_file(video_file.name)
