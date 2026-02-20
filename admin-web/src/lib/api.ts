@@ -234,6 +234,10 @@ export async function updatePromo(id: string, data: Record<string, unknown>) {
   });
 }
 
+export async function deletePromo(id: string) {
+  return request<Record<string, unknown>>(`/admin/promo/${id}`, { method: "DELETE" });
+}
+
 export async function promoAction(id: string, action: string) {
   return request<Record<string, unknown>>(`/admin/promo/${id}/${action}`, { method: "POST" });
 }

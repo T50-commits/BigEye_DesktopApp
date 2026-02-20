@@ -26,7 +26,9 @@ export default function PromotionsPage() {
     setLoading(true);
     try {
       const res = await getPromos(filter) as { promotions: Promo[] };
-      setPromos(res.promotions || []);
+      // Hide CANCELLED from the default "All" view (when filter is empty)
+      const allPromos = res.promotions || [];
+      setPromos(filter === "" ? allPromos.filter(p => p.status !== "CANCELLED") : allPromos);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -34,10 +36,18 @@ export default function PromotionsPage() {
   useEffect(() => { load(); }, [filter]);
 
   const doAction = async (id: string, action: string) => {
-    if (!confirm(`${action} โปรโมชั่นนี้?`)) return;
+    const isDelete = action === "delete";
+    if (!confirm(isDelete ? "ลบโปรโมชั่นนี้ถาวร ใช่หรือไม่? (ไม่สามารถกู้คืนได้)" : `${action} โปรโมชั่นนี้?`)) return;
     try {
-      const res = await promoAction(id, action) as { message: string };
-      setMsg(res.message); load();
+      if (isDelete) {
+        const { deletePromo } = await import("@/lib/api");
+        const res = await deletePromo(id) as { message: string };
+        setMsg(res.message);
+      } else {
+        const res = await promoAction(id, action) as { message: string };
+        setMsg(res.message);
+      }
+      load();
     } catch (e: unknown) { setMsg(e instanceof Error ? e.message : "Error"); }
   };
 
@@ -102,6 +112,9 @@ export default function PromotionsPage() {
                 )}
                 {["ACTIVE", "DRAFT", "PAUSED"].includes(p.status) && (
                   <button onClick={() => doAction(p.promo_id, "cancel")} className="px-2 py-1 text-[11px] bg-accent-red/10 text-accent-red border border-accent-red/20 rounded hover:bg-accent-red/20">ยกเลิก</button>
+                )}
+                {["DRAFT", "PAUSED", "CANCELLED"].includes(p.status) && (
+                  <button onClick={() => doAction(p.promo_id, "delete")} className="px-2 py-1 text-[11px] bg-accent-red/5 text-accent-red/60 border border-accent-red/20 rounded hover:bg-accent-red/15 hover:text-accent-red ml-auto">ลบถาวร</button>
                 )}
               </div>
             </div>
