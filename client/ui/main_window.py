@@ -439,20 +439,22 @@ class MainWindow(QMainWindow):
         csv_files = summary.get("csv_files", [])
         output_folder = summary.get("output_folder", "")
 
-        skipped = summary.get("skipped", 0)
+        cancelled = summary.get("cancelled", False)
         self.credit_bar.set_balance(balance)
         self.gallery.update_progress(self._process_total, self._process_total)
-        if skipped > 0:
+
+        if cancelled:
             self.status_bar.showMessage(
-                f"หยุดกลางคัน — สำเร็จ {successful} ไฟล์, ยกเลิก {skipped} ไฟล์, คืนเครดิต {refunded} cr"
+                f"ยกเลิกแล้ว — คืนเครดิต {refunded} cr ทั้งหมด"
             )
-        else:
-            self.status_bar.showMessage(
-                f"เสร็จสิ้น — สำเร็จ {successful} ไฟล์, ล้มเหลว {failed} ไฟล์"
-            )
+            self.inspector.enable_export(False)
+            return
 
         # Enable Re-export button after auto-save
         self.inspector.enable_export(True)
+        self.status_bar.showMessage(
+            f"เสร็จสิ้น — สำเร็จ {successful} ไฟล์, ล้มเหลว {failed} ไฟล์"
+        )
 
         dialog = SummaryDialog(
             successful, failed, img_count, vid_count,
@@ -501,20 +503,19 @@ class MainWindow(QMainWindow):
             self._job_thread = None
 
     def _on_stop(self):
-        """Stop processing with confirmation — graceful: wait for in-flight files then finalize."""
+        """Stop processing immediately with confirmation (cancel job, 100% refund)."""
         if not self._is_processing:
             return
         reply = QMessageBox.question(
-            self, "หยุดประมวลผล",
-            "คุณต้องการหยุดประมวลผลใช่หรือไม่?\nไฟล์ที่กำลังประมวลผลอยู่จะเสร็จก่อน จากนั้นระบบจะสร้าง CSV และคืนเครดิตอัตโนมัติ",
+            self, "ยกเลิกประมวลผล",
+            "คุณต้องการยกเลิกการประมวลผลใช่หรือไม่?\n\n• งานนี้จะถูกยกเลิกทันที\n• ระบบจะไม่สร้างไฟล์ CSV\n• ระบบจะคืนเครดิตให้คุณเต็มจำนวน 100%",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
-            # Signal queue to stop accepting new files — do NOT disconnect signals yet
-            # Let in-flight workers finish → all_completed fires → _on_job_completed handles CSV/folder/refund
+            # Stop immediately (JobManager will finalize 0 success and refund all)
             self._job_manager.stop_job()
-            self.gallery.progress_text.setText("กำลังหยุด... รอไฟล์ปัจจุบันเสร็จ")
-            self.status_bar.showMessage("กำลังหยุดประมวลผล...")
+            self.gallery.progress_text.setText("กำลังยกเลิกและคืนเครดิต...")
+            self.status_bar.showMessage("กำลังยกเลิกประมวลผล...")
 
     def _on_escape(self):
         if self._is_processing:

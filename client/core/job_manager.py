@@ -211,12 +211,54 @@ class JobManager(QObject):
             self.job_failed.emit(f"ไม่สามารถเริ่มประมวลผลได้: {e}")
 
     def stop_job(self):
-        """Stop the current job gracefully."""
+        """Stop the current job immediately (cancel) and refund 100%."""
         if not self._is_running:
             return
-        logger.info("Stopping job...")
+        logger.info("Canceling job immediately...")
         self._is_running = False
         self._queue.stop()
+
+        # Finalize with 0 success/failed to trigger 100% refund
+        refunded = 0
+        new_balance = self._settings.get("balance", 0)
+        try:
+            from core import api
+            fin = api.finalize_job(self._job_token, 0, 0, 0, 0)
+            refunded = fin.get("refunded", 0)
+            new_balance = fin.get("balance", new_balance)
+            self.credit_updated.emit(new_balance)
+        except Exception as e:
+            logger.warning(f"Cancel finalize failed: {e}")
+            # Estimate full refund locally if API fails
+            rates = self._settings.get("platform_rate", {"photo": 3, "video": 3})
+            if isinstance(rates, int):
+                rates = {"photo": rates, "video": rates}
+            photos = sum(1 for fn in self._files if is_image(fn))
+            videos = sum(1 for fn in self._files if is_video(fn))
+            refunded = (photos * rates.get("photo", 3)) + (videos * rates.get("video", 3))
+
+        # Cleanup resources immediately
+        self._engine.cleanup_prefetched()
+        self._engine.delete_cache()
+        self._copyright_guard.clear()
+        Transcoder.cleanup_all_proxies()
+        JournalManager.delete_journal()
+
+        summary = {
+            "successful": 0,
+            "failed": 0,
+            "skipped": len(self._files),
+            "photo_count": 0,
+            "video_count": 0,
+            "charged": 0,
+            "refunded": refunded,
+            "balance": new_balance,
+            "csv_files": [],
+            "output_folder": "",
+            "cancelled": True
+        }
+        logger.info(f"Job cancelled: refunded={refunded}")
+        self.job_completed.emit(summary)
 
     # ── File processing (runs on worker thread) ──
 
@@ -375,6 +417,9 @@ class JobManager(QObject):
 
     def _on_file_completed(self, filepath: str, result: dict):
         """Handle per-file completion from queue."""
+        if not self._is_running:
+            return
+
         filename = os.path.basename(filepath)
         self._results[filename] = result
 
@@ -393,6 +438,8 @@ class JobManager(QObject):
 
     def _on_all_completed(self):
         """Handle job completion: finalize → CSV → sound → cleanup."""
+        if not self._is_running:
+            return
         self._is_running = False
 
         ok = sum(1 for r in self._results.values() if r.get("status") == "success")
