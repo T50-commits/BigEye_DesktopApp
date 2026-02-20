@@ -54,7 +54,6 @@ PLATFORM_RATES = {
 # gemini-3-x are Preview (may require allowlist access)
 AI_MODELS = [
     "gemini-3-pro-preview",
-    "gemini-3-flash-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -65,12 +64,7 @@ AI_MODEL_INFO = {
     "gemini-3-pro-preview": {
         "label": "Gemini 3 Pro (Preview)",
         "supports_cache": False,
-        "description": "ใหม่ล่าสุด | ฉลาดที่สุดในโลก | Multimodal",
-    },
-    "gemini-3-flash-preview": {
-        "label": "Gemini 3 Flash (Preview)",
-        "supports_cache": False,
-        "description": "ใหม่ล่าสุด | เร็ว + ฉลาดเทียบ Pro | ราคาถูก",
+        "description": "ใหม่ล่าสุด | ฉลาดที่สุดในโลก | ⚠️ ช้ามากๆ อาจใช้เวลานานหลายนาทีต่อไฟล์",
     },
     "gemini-2.5-pro": {
         "label": "Gemini 2.5 Pro",
