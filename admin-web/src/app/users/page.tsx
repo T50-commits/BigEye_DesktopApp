@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getUsers, getUser, getUserTransactions, getUserJobs, adjustCredits, suspendUser, unsuspendUser, resetHardware, resetPassword } from "@/lib/api";
+import { getUsers, getUser, getUserTransactions, getUserJobs, adjustCredits, suspendUser, unsuspendUser, resetHardware, resetPassword, deleteUser } from "@/lib/api";
 import { formatNumber, formatCurrency, formatDateTime, statusBgColor, cn } from "@/lib/utils";
 import StatusBadge from "@/components/shared/StatusBadge";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
@@ -32,6 +32,7 @@ export default function UsersPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [tab, setTab] = useState<"info" | "txs" | "jobs">("info");
   const [actionMsg, setActionMsg] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -208,6 +209,20 @@ export default function UsersPage() {
                   <input name="pw" type="text" required minLength={8} placeholder="รหัสผ่านใหม่" className="flex-1 px-2 py-1.5 bg-bg-input border border-bdr rounded text-xs text-txt-primary" />
                   <button type="submit" className="px-3 py-1.5 bg-accent-orange/10 text-accent-orange border border-accent-orange/20 rounded text-xs hover:bg-accent-orange/20">รีเซ็ต</button>
                 </form>
+
+                {/* Delete Account */}
+                <hr className="border-bdr" />
+                {!confirmDelete ? (
+                  <button onClick={() => setConfirmDelete(true)} className="w-full px-3 py-1.5 bg-accent-red/5 text-accent-red/70 border border-accent-red/20 rounded text-xs hover:bg-accent-red/15 hover:text-accent-red">ลบบัญชีนี้</button>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-accent-red">⚠️ ยืนยันลบบัญชี <span className="font-semibold">{selected.email}</span> ? ไม่สามารถกู้คืนได้</p>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => { doAction(() => deleteUser(selected.uid)); setConfirmDelete(false); setSelected(null); }} className="flex-1 px-3 py-1.5 bg-accent-red text-white rounded text-xs hover:bg-accent-red/80">ยืนยันลบ</button>
+                      <button onClick={() => setConfirmDelete(false)} className="flex-1 px-3 py-1.5 bg-bg-input border border-bdr rounded text-xs text-txt-secondary hover:text-txt-primary">ยกเลิก</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -110,6 +110,10 @@ export async function resetPassword(uid: string, newPassword: string, resetHw = 
   });
 }
 
+export async function deleteUser(uid: string) {
+  return request<Record<string, unknown>>(`/admin/users/${uid}`, { method: "DELETE" });
+}
+
 // ── Slips ──
 export async function getSlips(status = "", page = 1, limit = 50) {
   const params = new URLSearchParams({ status, page: String(page), limit: String(limit) });

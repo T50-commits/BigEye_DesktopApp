@@ -541,6 +541,39 @@ async def reset_hardware(uid: str, admin: dict = Depends(require_admin)):
     return {"message": "รีเซ็ต Hardware ID เรียบร้อย"}
 
 
+@router.delete("/users/{uid}")
+async def delete_user(uid: str, admin: dict = Depends(require_admin)):
+    """Delete a user account and all associated data."""
+    user_doc = users_ref().document(uid).get()
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_data = user_doc.to_dict()
+    now = datetime.now(timezone.utc)
+
+    # Safety: block deletion if user has remaining credits > 0
+    if user_data.get("credits", 0) > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"ไม่สามารถลบบัญชีที่ยังมีเครดิตเหลืออยู่ ({user_data['credits']} เครดิต) — ปรับเครดิตเป็น 0 ก่อน"
+        )
+
+    users_ref().document(uid).delete()
+
+    audit_logs_ref().add({
+        "event_type": "ADMIN_DELETE_USER",
+        "user_id": admin["user_id"],
+        "details": {
+            "target_uid": uid,
+            "target_email": user_data.get("email", ""),
+            "target_name": user_data.get("full_name", ""),
+        },
+        "severity": "CRITICAL",
+        "created_at": now,
+    })
+    return {"message": f"ลบบัญชี {user_data.get('email', uid)} เรียบร้อย"}
+
+
 @router.post("/users/{uid}/reset-password")
 async def reset_password(uid: str, req: ResetPasswordRequest, admin: dict = Depends(require_admin)):
     """Reset a user's password."""
