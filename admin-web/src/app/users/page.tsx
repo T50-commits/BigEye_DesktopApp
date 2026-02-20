@@ -59,6 +59,7 @@ export default function UsersPage() {
       setJobs(j.jobs);
       setTab("info");
       setActionMsg("");
+      setConfirmDelete(false);
     } catch (e) { console.error(e); }
   };
 
