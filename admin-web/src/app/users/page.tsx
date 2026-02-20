@@ -88,7 +88,7 @@ export default function UsersPage() {
         />
       </div>
 
-      <div className="flex gap-5">
+      <div className="flex gap-5 items-start">
         {/* Table */}
         <div className="flex-1 min-w-0">
           {loading ? <LoadingSpinner /> : (
@@ -142,7 +142,7 @@ export default function UsersPage() {
 
         {/* Detail Panel */}
         {selected && (
-          <div className="w-[380px] shrink-0 hidden xl:block bg-bg-surface border border-bdr rounded-card p-5 space-y-4 max-h-[calc(100vh-140px)] overflow-y-auto">
+          <div className="w-[380px] shrink-0 hidden xl:block bg-bg-surface border border-bdr rounded-card p-5 space-y-4 sticky top-4 self-start max-h-[calc(100vh-100px)] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-txt-primary">รายละเอียดผู้ใช้</h3>
               <button onClick={() => setSelected(null)} className="text-txt-muted hover:text-txt-primary"><X size={16} /></button>
