@@ -212,17 +212,21 @@ export default function UsersPage() {
                 </form>
 
                 {/* Delete Account */}
-                <hr className="border-bdr" />
-                {!confirmDelete ? (
-                  <button onClick={() => setConfirmDelete(true)} className="w-full px-3 py-1.5 bg-accent-red/5 text-accent-red/70 border border-accent-red/20 rounded text-xs hover:bg-accent-red/15 hover:text-accent-red">ลบบัญชีนี้</button>
-                ) : (
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-accent-red">⚠️ ยืนยันลบบัญชี <span className="font-semibold">{selected.email}</span> ? ไม่สามารถกู้คืนได้</p>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => { doAction(() => deleteUser(selected.uid)); setConfirmDelete(false); setSelected(null); }} className="flex-1 px-3 py-1.5 bg-accent-red text-white rounded text-xs hover:bg-accent-red/80">ยืนยันลบ</button>
-                      <button onClick={() => setConfirmDelete(false)} className="flex-1 px-3 py-1.5 bg-bg-input border border-bdr rounded text-xs text-txt-secondary hover:text-txt-primary">ยกเลิก</button>
-                    </div>
-                  </div>
+                {selected.tier !== "admin" && (
+                  <>
+                    <hr className="border-bdr" />
+                    {!confirmDelete ? (
+                      <button onClick={() => setConfirmDelete(true)} className="w-full px-3 py-1.5 bg-accent-red/5 text-accent-red/70 border border-accent-red/20 rounded text-xs hover:bg-accent-red/15 hover:text-accent-red">ลบบัญชีนี้</button>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-accent-red">⚠️ ยืนยันลบบัญชี <span className="font-semibold">{selected.email}</span> ? ไม่สามารถกู้คืนได้</p>
+                        <div className="flex gap-1.5">
+                          <button onClick={() => { doAction(() => deleteUser(selected.uid)); setConfirmDelete(false); setSelected(null); }} className="flex-1 px-3 py-1.5 bg-accent-red text-white rounded text-xs hover:bg-accent-red/80">ยืนยันลบ</button>
+                          <button onClick={() => setConfirmDelete(false)} className="flex-1 px-3 py-1.5 bg-bg-input border border-bdr rounded text-xs text-txt-secondary hover:text-txt-primary">ยกเลิก</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
