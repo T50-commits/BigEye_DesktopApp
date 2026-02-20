@@ -447,6 +447,9 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(
                 f"ยกเลิกแล้ว — คืนเครดิต {refunded} cr ทั้งหมด"
             )
+            self._results.clear()
+            self.gallery.reset_file_statuses()
+            self.inspector.clear()
             self.inspector.enable_export(False)
             return
 
