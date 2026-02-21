@@ -60,7 +60,7 @@ class Transcoder:
         import hashlib
         name_hash = hashlib.md5(input_path.encode()).hexdigest()[:12]
         base = os.path.splitext(os.path.basename(input_path))[0]
-        return os.path.join(PROXY_DIR, f"{base}_{name_hash}_480p.mp4")
+        return os.path.join(PROXY_DIR, f"{base}_{name_hash}_proxy.mp4")
 
     @staticmethod
     def create_proxy(input_path: str, output_path: str = "",
